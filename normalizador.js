@@ -1,4 +1,4 @@
-const AuditoriaNormalizador = (() => {
+window.AuditoriaNormalizador = (() => {
   const norm = s => String(s == null ? '' : s)
     .toLowerCase()
     .normalize('NFD')
@@ -114,13 +114,10 @@ const AuditoriaNormalizador = (() => {
   };
 
   const badSheet = /endeudamiento|periodo medio|rotacion|liquidez|score|ratio|margen|cobertura|indicadores|calificacion/;
-
   const rowText = row => row.map(norm).filter(Boolean).join(' ');
 
   function headers(rows) {
     const found = {};
-    // Los encabezados de ejercicios normalmente están en las primeras filas.
-    // Se buscan solamente fechas/años válidos, nunca números de importes.
     for (let r = 0; r < Math.min(rows.length, 30); r++) {
       const row = rows[r] || [];
       row.forEach((v, i) => {
