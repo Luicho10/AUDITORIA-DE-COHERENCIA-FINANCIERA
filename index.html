@@ -9,7 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V0.8</b></header>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V0.9</b></header>
 <main class="wrap">
 <section id="login" class="card login-card">
 <h2>ACCESO AL SISTEMA</h2>
@@ -17,7 +17,7 @@
 </section>
 <div id="app" class="hidden">
 <section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid"><div><label>Cliente / Razón Social</label><input id="cliente"></div><div><label>RUC / CI</label><input id="ruc"></div><div><label>Ejercicio final</label><input id="ejercicio"></div><div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div></div></section>
-<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>Balance General</b><input id="balance" type="file" accept=".xlsx,.xls,.csv"><span id="sb">Sin archivo</span></div><div><b>Estado de Resultados</b><input id="resultados" type="file" accept=".xlsx,.xls,.csv"><span id="sr">Sin archivo</span></div><div><b>Flujo de Efectivo (opcional)</b><input id="flujo" type="file" accept=".xlsx,.xls,.csv"><span id="sf">Sin archivo</span></div></div><p class="muted"><b>El Flujo de Efectivo es opcional.</b> Si no existe, el sistema reconstruirá movimientos posibles a partir de Balance + Resultados y sus variaciones históricas.</p><div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR ARCHIVOS</button><button class="btn secondary" id="demo">CARGAR CASO DEMOSTRATIVO</button></div></div></section>
+<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>Balance General</b><input id="balance" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="sb">Sin archivo</span><button type="button" class="btn secondary clear-file" data-clear="balance">QUITAR ARCHIVO</button></div><div><b>Estado de Resultados</b><input id="resultados" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="sr">Sin archivo</span><button type="button" class="btn secondary clear-file" data-clear="resultados">QUITAR ARCHIVO</button></div><div><b>Flujo de Efectivo (opcional)</b><input id="flujo" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="sf">Sin archivo</span><button type="button" class="btn secondary clear-file" data-clear="flujo">QUITAR ARCHIVO</button></div></div><p class="muted"><b>El Flujo de Efectivo es opcional.</b> Si no existe, el sistema reconstruirá movimientos posibles a partir de Balance + Resultados y sus variaciones históricas.</p><div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR ARCHIVOS</button><button class="btn secondary" id="demo">CARGAR CASO DEMOSTRATIVO</button></div></div></section>
 <section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA Y NORMALIZACIÓN</h2><div class="body" id="controlBody"></div></section>
 <section id="auditoria" class="hidden"></section>
 </div></main>
