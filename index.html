@@ -6,13 +6,14 @@
 <title>Auditoría de Coherencia Financiera</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V0.8</b></header>
 <main class="wrap">
 <section id="login" class="card login-card">
 <h2>ACCESO AL SISTEMA</h2>
-<div class="body login-body"><label>Usuario</label><input id="usuario" autocomplete="username" placeholder="Usuario"><label>Contraseña</label><input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña"><button class="btn primary" id="ingresar">INGRESAR</button><div id="loginMsg" class="login-msg"></div><p class="muted">Acceso protegido. La autenticación real se conectará a Supabase antes de utilizar información financiera de clientes.</p></div>
+<div class="body login-body"><label>Usuario</label><input id="usuario" autocomplete="username" placeholder="Correo electrónico"><label>Contraseña</label><input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña"><button class="btn primary" id="ingresar">INGRESAR</button><div id="loginMsg" class="login-msg"></div><p class="muted">Acceso protegido mediante Supabase Auth. Los estados financieros se procesan después de la autenticación.</p></div>
 </section>
 <div id="app" class="hidden">
 <section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid"><div><label>Cliente / Razón Social</label><input id="cliente"></div><div><label>RUC / CI</label><input id="ruc"></div><div><label>Ejercicio final</label><input id="ejercicio"></div><div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div></div></section>
@@ -21,5 +22,14 @@
 <section id="auditoria" class="hidden"></section>
 </div></main>
 <script src="normalizador.js"></script><script src="motor_coherencia_financiera.js"></script><script src="app.js"></script>
-<script>document.getElementById('ingresar').addEventListener('click',function(){const u=document.getElementById('usuario').value.trim(),p=document.getElementById('clave').value,msg=document.getElementById('loginMsg');if(!u||!p){msg.textContent='Ingrese usuario y contraseña.';return}document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')});</script>
+<script>
+const SUPABASE_URL='https://layqqdkatatutmexoqrl.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_mob6Bya5CJ5AyzBNJd_TvA_VFIGyWc8';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const login=document.getElementById('login'),app=document.getElementById('app'),msg=document.getElementById('loginMsg');
+async function restoreSession(){const {data}=await supabaseClient.auth.getSession();if(data.session){login.classList.add('hidden');app.classList.remove('hidden')}}
+supabaseClient.auth.onAuthStateChange((_event,session)=>{if(session){login.classList.add('hidden');app.classList.remove('hidden')}});
+document.getElementById('ingresar').addEventListener('click',async()=>{const email=document.getElementById('usuario').value.trim(),password=document.getElementById('clave').value;msg.textContent='';if(!email||!password){msg.textContent='Ingrese correo y contraseña.';return}const {error}=await supabaseClient.auth.signInWithPassword({email,password});if(error){msg.textContent='No se pudo ingresar. Verifique usuario y contraseña.';return}msg.textContent='Acceso correcto.'});
+restoreSession();
+</script>
 </body></html>
