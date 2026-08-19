@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auditoría de Coherencia Financiera</title>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V0.6</b></header>
+<main class="wrap">
+<section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid">
+<div><label>Cliente / Razón Social</label><input id="cliente"></div>
+<div><label>RUC / CI</label><input id="ruc"></div>
+<div><label>Ejercicio final</label><input id="ejercicio"></div>
+<div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div>
+</div></section>
+<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body">
+<div class="filebox">
+<div><b>Balance General</b><input id="balance" type="file" accept=".xlsx,.xls,.csv"><span id="sb">Sin archivo</span></div>
+<div><b>Estado de Resultados</b><input id="resultados" type="file" accept=".xlsx,.xls,.csv"><span id="sr">Sin archivo</span></div>
+<div><b>Flujo de Efectivo</b><input id="flujo" type="file" accept=".xlsx,.xls,.csv"><span id="sf">Sin archivo</span></div>
+</div>
+<p class="muted"><b>Primero se controla la lectura.</b> El sistema muestra hojas, períodos, cuentas reconocidas y valores tomados antes de emitir conclusiones.</p>
+<div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR ARCHIVOS</button><button class="btn secondary" id="demo">CARGAR CASO DEMOSTRATIVO</button></div>
+</div></section>
+<section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA</h2><div class="body" id="controlBody"></div></section>
+<section id="auditoria" class="hidden"></section>
+</main>
+<script src="app.js"></script>
+</body></html>
