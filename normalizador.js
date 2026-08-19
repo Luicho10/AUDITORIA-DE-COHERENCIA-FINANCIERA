@@ -1,19 +1,238 @@
-const AuditoriaNormalizador=(()=>{
-const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
-const number=v=>{if(typeof v==='number')return v;let s=String(v??'').trim();if(!s)return null;s=s.replace(/\s/g,'').replace(/[()]/g,'-');if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s))s=s.replace(/\./g,'').replace(',','.');else if(/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s))s=s.replace(/,/g,'');else s=s.replace(/,/g,'.');const n=Number(s.replace(/[^0-9eE+\-.]/g,''));return Number.isFinite(n)?n:null};
-const C={balance:{caja_bancos:['caja','caja y bancos','bancos','disponible','disponibilidades','efectivo','efectivo y equivalentes'],creditos_ventas:['creditos por ventas','cuentas por cobrar','clientes','deudores por ventas','creditos comerciales'],inventarios:['inventarios','inventario','existencias','mercaderias','stock'],anticipos_proveedores:['anticipos a proveedores','anticipos proveedores'],otros_activos_corrientes:['otros activos corrientes','otros activos cp'],ppe:['propiedad planta y equipo','propiedad, planta y equipo','bienes de uso','activo fijo','activos fijos','inmovilizado material','maquinarias','inmuebles'],otros_activos_no_corrientes:['otros activos no corrientes','otros activos lp'],proveedores:['proveedores','cuentas por pagar a proveedores','proveedores nacionales','proveedores del exterior','deudas comerciales'],prestamos_cp:['prestamos corrientes','prestamos corto plazo','deudas financieras corrientes','prestamos bancarios cp','deudas financieras cp'],prestamos_lp:['prestamos no corrientes','prestamos largo plazo','deudas financieras no corrientes','prestamos bancarios lp','deudas financieras lp'],deudas_fiscales:['deudas fiscales','impuestos a pagar','tributos a pagar'],deudas_sociales:['deudas sociales','sueldos y cargas sociales','cargas sociales'],acreedores_varios:['acreedores varios'],capital:['capital','capital social'],reservas:['reservas','reservas legales'],resultados_acumulados:['resultados acumulados','resultados no asignados','utilidades acumuladas','perdidas acumuladas'],resultado_ejercicio:['resultado del ejercicio','resultado neto del ejercicio','utilidad del ejercicio','perdida del ejercicio'],total_activo:['total activo','total de activos'],total_activo_corriente:['total activo corriente'],total_activo_no_corriente:['total activo no corriente'],total_pasivo:['total pasivo','total de pasivos'],total_pasivo_corriente:['total pasivo corriente'],total_pasivo_no_corriente:['total pasivo no corriente'],total_patrimonio:['total patrimonio','patrimonio neto','total patrimonio neto']},resultados:{ventas:['ventas','ventas netas','ingresos por ventas','ingresos de actividades ordinarias','ingresos operativos','facturacion'],costo_ventas:['costo de ventas','costo de mercaderias vendidas','costo de mercaderias','costos de ventas'],resultado_bruto:['resultado bruto','utilidad bruta','ganancia bruta','resultado bruto comercial principal','resultado bruto total'],gastos_comerciales:['gastos de comercializacion','gastos comerciales','gastos de ventas'],gastos_administrativos:['gastos de administracion','gastos administrativos'],otros_gastos_operativos:['otros egresos operativos','otros gastos operativos'],diferencia_cambio:['diferencia de cambio','resultado por diferencia de cambio','diferencias de cambio','perdidas por diferencia de cambio','ganancias por diferencia de cambio'],intereses_gasto:['intereses','intereses pagados','intereses financieros pagados','intereses perdidos','gastos financieros','costos financieros'],intereses_ingreso:['intereses ganados','intereses financieros cobrados','ingresos financieros'],ebitda:['ebitda','flujo operativo puro','flujo operativo puro/caja real'],ebit:['ebit','resultado operativo','resultado operativo contable'],resultado_antes_impuesto:['resultado antes del impuesto','resultado antes de impuestos','resultado antes de impuesto'],impuesto_renta:['impuesto a la renta','impuesto a las ganancias'],resultado_neto:['resultado neto','resultado del ejercicio','utilidad neta','ganancia neta','perdida neta']},flujo:{flujo_operativo:['flujo de efectivo de actividades operativas','flujo operativo','efectivo generado por actividades operativas','flujo neto de actividades operativas'],cobros_clientes:['cobros a clientes','cobros por ventas','cobranzas de clientes'],pagos_proveedores:['pagos a proveedores','pago a proveedores','pagos por compras','pagos a proveedores de bienes y servicios'],intereses_pagados:['intereses pagados','pagos de intereses','intereses abonados'],flujo_inversion:['flujo de efectivo de actividades de inversion','flujo de inversion','actividades de inversion'],capex:['adquisicion de propiedad planta y equipo','compras de propiedad planta y equipo','adquisiciones de activos fijos','compra de bienes de uso','capex'],flujo_financiamiento:['flujo de efectivo de actividades de financiacion','flujo de financiamiento','actividades de financiacion'],prestamos_recibidos:['prestamos recibidos','obtencion de prestamos','nuevos prestamos','financiamiento recibido'],prestamos_pagados:['prestamos pagados','amortizacion de prestamos','pago de prestamos','cancelacion de prestamos'],aportes:['aportes de capital','aportes de socios','capital aportado'],dividendos:['dividendos pagados','retiros de socios'],flujo_neto:['aumento neto del efectivo','disminucion neta del efectivo','flujo neto de efectivo','variacion neta del efectivo'],efectivo_inicial:['efectivo al inicio','saldo inicial de efectivo','efectivo inicial'],efectivo_final:['efectivo al cierre','saldo final de efectivo','efectivo final']}};
-const badSheet=/endeudamiento|periodo medio|rotacion|liquidez|score|ratio|margen|cobertura|analisis financiero|indicadores|calificacion/;
-function extractYears(v){if(v instanceof Date&&!isNaN(v))return [String(v.getFullYear())];if(typeof v==='number'&&v>30000&&v<60000){const d=new Date(Date.UTC(1899,11,30)+v*86400000);if(!isNaN(d))return [String(d.getUTCFullYear())]}const s=String(v??'');const out=[];const direct=s.match(/20\d{2}/g)||[];for(const y of direct)out.push(y);for(const m of s.matchAll(/(?:\d{1,2})[\/-](?:\d{1,2})[\/-](20\d{2})/g))out.push(m[1]);return [...new Set(out)]}
-function headers(rows){const found={};for(let r=0;r<Math.min(rows.length,160);r++){const row=rows[r]||[];for(let i=0;i<row.length;i++){for(const y of extractYears(row[i])){if(found[y]==null)found[y]=i}}}}return found}
-function rowText(row){return row.map(norm).filter(Boolean).join(' ')}
-function exactAccountHits(sh,type){let hits=0;for(const row of sh.rows.slice(0,160)){const txt=rowText(row);for(const aliases of Object.values(C[type]||{}))for(const a of aliases)if(txt===norm(a)||txt.includes(' '+norm(a))||txt.startsWith(norm(a))){hits++;break}}return hits}
-function bestSheet(doc,type){let best=doc.sheets[0],score=-Infinity;for(const sh of doc.sheets){const txt=norm(sh.name),all=sh.rows.slice(0,160).map(rowText).join(' ');let s=exactAccountHits(sh,type)*12;if(type==='balance'){if(/balance|situacion patrimonial|estado de situacion|activo|pasivo/.test(txt))s+=20;if(/balance|activo|pasivo|patrimonio/.test(all))s+=10}if(type==='resultados'&&/resultado|perdida|ganancia/.test(txt))s+=20;if(type==='flujo'&&/flujo|efectivo/.test(txt))s+=20;if(badSheet.test(txt)||badSheet.test(all))s-=80;if(s>score){score=s;best=sh}}return best}
-function match(labelText,type){const n=norm(labelText);if(!n)return null;let best=null;for(const [key,aliases] of Object.entries(C[type]||{}))for(const alias of aliases){const a=norm(alias);if(n===a||n.startsWith(a+' ')||n.includes(' '+a)){const score=n===a?100:Math.min(99,Math.max(35,a.length/n.length*100));if(!best||score>best.score)best={key,alias,score:Math.round(score)}}}return best}
-function label(row,type){const candidates=row.map((v,i)=>({v:String(v??'').trim(),i})).filter(x=>x.v&&!/^[-+]?\(?[\d.,%\s]+\)?$/.test(x.v)&&extractYears(x.v).length===0);let best=null;for(const c of candidates){const m=match(c.v,type);if(m&&(!best||m.score>best.score))best={v:c.v,m}}if(best)return best.v;const clean=candidates.filter(c=>!badSheet.test(norm(c.v))&&!/^(analisis|importe|variacion|periodo|ruc|ci|fecha|total)$/.test(norm(c.v)));return clean[0]?.v||''}
-function valueForPeriod(row,col){return number(row[col])}
-function normalize(doc,type){const sh=bestSheet(doc,type),h=headers(sh.rows),periods=Object.keys(h).sort(),matched={},unmapped=[];for(const row of sh.rows){const text=label(row,type);if(!text||badSheet.test(norm(text)))continue;const m=match(text,type),values={};periods.forEach(y=>values[y]=valueForPeriod(row,h[y]));if(!Object.values(values).some(v=>v!==null))continue;if(m){if(!matched[m.key])matched[m.key]={label:text,alias:m.alias,score:m.score,values};else periods.forEach(y=>{if(matched[m.key].values[y]===null&&values[y]!==null)matched[m.key].values[y]=values[y]})}else unmapped.push({label:text,values})}return {name:doc.name,sheet:sh.name,periods,matched,unmapped}}
-function normalizeCombined(doc){const sh=bestSheet(doc,'balance'),h=headers(sh.rows),periods=Object.keys(h).sort(),out={balance:{name:doc.name,sheet:sh.name,periods,matched:{},unmapped:[]},resultados:{name:doc.name,sheet:sh.name,periods,matched:{},unmapped:[]}};let section=null;for(const row of sh.rows){const txt=rowText(row);if(/1\.\s*balance general|balance general/.test(txt)){section='balance';continue}if(/2\.\s*estado de resultados|estado de resultados/.test(txt)){section='resultados';continue}if(!section)continue;const type=section,text=label(row,type);if(!text||badSheet.test(norm(text)))continue;const m=match(text,type),values={};periods.forEach(y=>values[y]=valueForPeriod(row,h[y]));if(!Object.values(values).some(v=>v!==null))continue;if(m){if(!out[type].matched[m.key])out[type].matched[m.key]={label:text,alias:m.alias,score:m.score,values};else periods.forEach(y=>{if(out[type].matched[m.key].values[y]===null&&values[y]!==null)out[type].matched[m.key].values[y]=values[y]})}else out[type].unmapped.push({label:text,values})}return out}
-function pct(a,b){return b===0||b==null||a==null?null:(a/b-1)*100}
-function correlate(B,R,F){const years=[...new Set([...(B?.periods||[]),...(R?.periods||[]),...(F?.periods||[])])].sort(),alerts=[];const v=(o,k,y)=>o?.matched?.[k]?.values?.[y]??null;for(const y of years){const a=v(B,'total_activo',y),p=v(B,'total_pasivo',y),n=v(B,'total_patrimonio',y);if([a,p,n].every(x=>x!==null)){const d=a-p-n;if(Math.abs(d)>0.5)alerts.push({level:'crit',title:`Ecuación patrimonial — ${y}`,text:`Activo ${a.toLocaleString('es-PY')} − Pasivo ${p.toLocaleString('es-PY')} − Patrimonio ${n.toLocaleString('es-PY')} = ${d.toLocaleString('es-PY')}.`,formula:'Activo − Pasivo − Patrimonio = 0'})}}const pair=(R&&B&&v(B,'inventarios',years.at(-1))!==null&&v(R,'ventas',years.at(-1))!==null&&years.length>=2);if(pair){const y0=years.at(-2),y1=years.at(-1),di=pct(v(B,'inventarios',y1),v(B,'inventarios',y0)),dv=pct(v(R,'ventas',y1),v(R,'ventas',y0));if(di!==null&&dv!==null&&Math.abs(dv-di)>=25)alerts.push({level:'warn',title:`Ruptura de tendencia ventas vs. inventarios — ${y1}`,text:`Ventas ${dv.toFixed(1)}%; inventarios ${di.toFixed(1)}%; diferencia ${(dv-di).toFixed(1)} puntos porcentuales.`,formula:'Variación % = (valor final / valor inicial − 1) × 100'})}return {years,alerts}}
-return {normalize,normalizeCombined,correlate,C,number,norm};
+const AuditoriaNormalizador = (() => {
+  const norm = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
+
+  const number = v => {
+    if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+    let s = String(v == null ? '' : v).trim();
+    if (!s) return null;
+    s = s.replace(/\s/g, '').replace(/[()]/g, '-');
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/,/g, '');
+    else s = s.replace(/,/g, '.');
+    const n = Number(s.replace(/[^0-9eE+\-.]/g, ''));
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const C = {
+    balance: {
+      caja_bancos:['caja','caja y bancos','bancos','disponible','disponibilidades','efectivo','efectivo y equivalentes'],
+      creditos_ventas:['creditos por ventas','cuentas por cobrar','clientes','deudores por ventas','creditos comerciales'],
+      inventarios:['inventarios','inventario','existencias','mercaderias','stock'],
+      anticipos_proveedores:['anticipos a proveedores','anticipos proveedores'],
+      otros_activos_corrientes:['otros activos corrientes','otros activos cp'],
+      ppe:['propiedad planta y equipo','propiedad, planta y equipo','bienes de uso','activo fijo','activos fijos','inmovilizado material'],
+      otros_activos_no_corrientes:['otros activos no corrientes','otros activos lp'],
+      proveedores:['proveedores','cuentas por pagar a proveedores','proveedores nacionales','proveedores del exterior','deudas comerciales'],
+      prestamos_cp:['prestamos corrientes','prestamos corto plazo','deudas financieras corrientes','prestamos bancarios cp','deudas financieras cp'],
+      prestamos_lp:['prestamos no corrientes','prestamos largo plazo','deudas financieras no corrientes','prestamos bancarios lp','deudas financieras lp'],
+      deudas_fiscales:['deudas fiscales','impuestos a pagar','tributos a pagar'],
+      deudas_sociales:['deudas sociales','sueldos y cargas sociales','cargas sociales'],
+      acreedores_varios:['acreedores varios'],
+      capital:['capital','capital social'],
+      reservas:['reservas','reservas legales'],
+      resultados_acumulados:['resultados acumulados','resultados no asignados','utilidades acumuladas','perdidas acumuladas'],
+      resultado_ejercicio:['resultado del ejercicio','resultado neto del ejercicio','utilidad del ejercicio','perdida del ejercicio'],
+      total_activo:['total activo','total de activos'],
+      total_activo_corriente:['total activo corriente'],
+      total_activo_no_corriente:['total activo no corriente'],
+      total_pasivo:['total pasivo','total de pasivos'],
+      total_pasivo_corriente:['total pasivo corriente'],
+      total_pasivo_no_corriente:['total pasivo no corriente'],
+      total_patrimonio:['total patrimonio','patrimonio neto','total patrimonio neto']
+    },
+    resultados: {
+      ventas:['ventas','ventas netas','ingresos por ventas','ingresos de actividades ordinarias','ingresos operativos','facturacion'],
+      costo_ventas:['costo de ventas','costo de mercaderias vendidas','costo de mercaderias','costos de ventas'],
+      resultado_bruto:['resultado bruto','utilidad bruta','ganancia bruta','resultado bruto comercial principal','resultado bruto total'],
+      gastos_comerciales:['gastos de comercializacion','gastos comerciales','gastos de ventas'],
+      gastos_administrativos:['gastos de administracion','gastos administrativos'],
+      otros_gastos_operativos:['otros egresos operativos','otros gastos operativos'],
+      diferencia_cambio:['diferencia de cambio','resultado por diferencia de cambio','diferencias de cambio','perdidas por diferencia de cambio','ganancias por diferencia de cambio'],
+      intereses_gasto:['intereses financieros pagados','intereses pagados','intereses perdidos','gastos financieros','costos financieros'],
+      intereses_ingreso:['intereses ganados','intereses financieros cobrados','ingresos financieros'],
+      ebitda:['ebitda','flujo operativo puro','flujo operativo puro/caja real'],
+      ebit:['ebit','resultado operativo','resultado operativo contable'],
+      resultado_antes_impuesto:['resultado antes del impuesto','resultado antes de impuestos','resultado antes de impuesto'],
+      impuesto_renta:['impuesto a la renta','impuesto a las ganancias'],
+      resultado_neto:['resultado neto total del ejercicio','resultado neto de capitalizaciones','resultado neto','resultado del ejercicio','utilidad neta','ganancia neta','perdida neta']
+    },
+    flujo: {
+      flujo_operativo:['flujo de efectivo de actividades operativas','flujo operativo','efectivo generado por actividades operativas','flujo neto de actividades operativas'],
+      cobros_clientes:['cobros a clientes','cobros por ventas','cobranzas de clientes'],
+      pagos_proveedores:['pagos a proveedores','pago a proveedores','pagos por compras','pagos a proveedores de bienes y servicios'],
+      intereses_pagados:['intereses pagados','pagos de intereses','intereses abonados'],
+      flujo_inversion:['flujo de efectivo de actividades de inversion','flujo de inversion','actividades de inversion'],
+      capex:['adquisicion de propiedad planta y equipo','compras de propiedad planta y equipo','adquisiciones de activos fijos','compra de bienes de uso','capex'],
+      flujo_financiamiento:['flujo de efectivo de actividades de financiacion','flujo de financiamiento','actividades de financiacion'],
+      prestamos_recibidos:['prestamos recibidos','obtencion de prestamos','nuevos prestamos','financiamiento recibido'],
+      prestamos_pagados:['prestamos pagados','amortizacion de prestamos','pago de prestamos','cancelacion de prestamos'],
+      aportes:['aportes de capital','aportes de socios','capital aportado'],
+      dividendos:['dividendos pagados','retiros de socios'],
+      flujo_neto:['aumento neto del efectivo','disminucion neta del efectivo','flujo neto de efectivo','variacion neta del efectivo'],
+      efectivo_inicial:['efectivo al inicio','saldo inicial de efectivo','efectivo inicial'],
+      efectivo_final:['efectivo al cierre','saldo final de efectivo','efectivo final']
+    }
+  };
+
+  const badSheet = /endeudamiento|periodo medio|rotacion|liquidez|score|ratio|margen|cobertura|analisis financiero|indicadores|calificacion/;
+
+  function extractYears(v) {
+    if (v instanceof Date && !isNaN(v.getTime())) return [String(v.getFullYear())];
+    if (typeof v === 'number' && v > 30000 && v < 60000) {
+      const d = new Date(Date.UTC(1899,11,30) + v * 86400000);
+      if (!isNaN(d.getTime())) return [String(d.getUTCFullYear())];
+    }
+    const s = String(v == null ? '' : v);
+    const out = [];
+    const direct = s.match(/20\d{2}/g) || [];
+    direct.forEach(y => out.push(y));
+    return [...new Set(out)];
+  }
+
+  function headers(rows) {
+    const found = {};
+    for (let r = 0; r < Math.min(rows.length, 180); r++) {
+      const row = rows[r] || [];
+      for (let i = 0; i < row.length; i++) {
+        const years = extractYears(row[i]);
+        years.forEach(y => { if (found[y] == null) found[y] = i; });
+      }
+    }
+    return found;
+  }
+
+  function rowText(row) { return row.map(norm).filter(Boolean).join(' '); }
+
+  function exactAccountHits(sh, type) {
+    let hits = 0;
+    (sh.rows || []).slice(0,180).forEach(row => {
+      const txt = rowText(row);
+      Object.values(C[type] || {}).forEach(aliases => {
+        if (aliases.some(a => txt === norm(a) || txt.includes(' ' + norm(a)) || txt.startsWith(norm(a)))) hits++;
+      });
+    });
+    return hits;
+  }
+
+  function bestSheet(doc, type) {
+    let best = doc.sheets[0], bestScore = -Infinity;
+    (doc.sheets || []).forEach(sh => {
+      const name = norm(sh.name);
+      const all = sh.rows.slice(0,180).map(rowText).join(' ');
+      let score = exactAccountHits(sh, type) * 12;
+      if (type === 'balance') {
+        if (/balance|situacion patrimonial|estado de situacion|activo|pasivo/.test(name)) score += 20;
+        if (/balance|activo|pasivo|patrimonio/.test(all)) score += 10;
+      }
+      if (type === 'resultados' && /resultado|perdida|ganancia/.test(name)) score += 20;
+      if (type === 'flujo' && /flujo|efectivo/.test(name)) score += 20;
+      if (badSheet.test(name)) score -= 80;
+      if (score > bestScore) { bestScore = score; best = sh; }
+    });
+    return best;
+  }
+
+  function match(labelText, type) {
+    const n = norm(labelText);
+    if (!n) return null;
+    let best = null;
+    Object.entries(C[type] || {}).forEach(([key, aliases]) => {
+      aliases.forEach(alias => {
+        const a = norm(alias);
+        if (n === a || n.startsWith(a + ' ') || n.includes(' ' + a)) {
+          const score = n === a ? 100 : Math.round(Math.min(99, Math.max(35, a.length / n.length * 100)));
+          if (!best || score > best.score) best = {key, alias, score};
+        }
+      });
+    });
+    return best;
+  }
+
+  function label(row, type) {
+    const candidates = row.map((v,i) => ({v:String(v == null ? '' : v).trim(), i})).filter(x => x.v && !/^[-+]?\(?[\d.,%\s]+\)?$/.test(x.v) && extractYears(x.v).length === 0);
+    let best = null;
+    candidates.forEach(c => {
+      const m = match(c.v, type);
+      if (m && (!best || m.score > best.m.score)) best = {v:c.v, m};
+    });
+    if (best) return best.v;
+    const clean = candidates.filter(c => !badSheet.test(norm(c.v)) && !/^(analisis|importe|variacion|periodo|ruc|ci|fecha|total)$/.test(norm(c.v)));
+    return clean.length ? clean[0].v : '';
+  }
+
+  function valueForPeriod(row, col) { return number(row[col]); }
+
+  function normalize(doc, type) {
+    const sh = bestSheet(doc, type);
+    const h = headers(sh.rows);
+    const periods = Object.keys(h).sort();
+    const matched = {};
+    const unmapped = [];
+    sh.rows.forEach(row => {
+      const text = label(row, type);
+      if (!text || badSheet.test(norm(text))) return;
+      const m = match(text, type);
+      const values = {};
+      periods.forEach(y => { values[y] = valueForPeriod(row, h[y]); });
+      if (!Object.values(values).some(v => v !== null)) return;
+      if (m) {
+        if (!matched[m.key]) matched[m.key] = {label:text, alias:m.alias, score:m.score, values};
+        else periods.forEach(y => { if (matched[m.key].values[y] === null && values[y] !== null) matched[m.key].values[y] = values[y]; });
+      } else unmapped.push({label:text, values});
+    });
+    return {name:doc.name, sheet:sh.name, periods, matched, unmapped};
+  }
+
+  function normalizeCombined(doc) {
+    const sh = bestSheet(doc, 'balance');
+    const h = headers(sh.rows);
+    const periods = Object.keys(h).sort();
+    const out = {
+      balance:{name:doc.name, sheet:sh.name, periods, matched:{}, unmapped:[]},
+      resultados:{name:doc.name, sheet:sh.name, periods, matched:{}, unmapped:[]}
+    };
+    let section = null;
+    sh.rows.forEach(row => {
+      const txt = rowText(row);
+      if (/1\.\s*balance general/.test(txt) || txt === 'balance general') { section = 'balance'; return; }
+      if (/2\.\s*estado de resultados/.test(txt) || txt === 'estado de resultados') { section = 'resultados'; return; }
+      if (!section) return;
+      const type = section;
+      const text = label(row, type);
+      if (!text || badSheet.test(norm(text))) return;
+      const m = match(text, type);
+      const values = {};
+      periods.forEach(y => { values[y] = valueForPeriod(row, h[y]); });
+      if (!Object.values(values).some(v => v !== null)) return;
+      if (m) {
+        if (!out[type].matched[m.key]) out[type].matched[m.key] = {label:text, alias:m.alias, score:m.score, values};
+        else periods.forEach(y => { if (out[type].matched[m.key].values[y] === null && values[y] !== null) out[type].matched[m.key].values[y] = values[y]; });
+      } else out[type].unmapped.push({label:text, values});
+    });
+    return out;
+  }
+
+  function pct(a,b) { return b === 0 || b == null || a == null ? null : (a / b - 1) * 100; }
+
+  function correlate(B,R,F) {
+    const years = [...new Set([...(B?.periods || []), ...(R?.periods || []), ...(F?.periods || [])])].sort();
+    const alerts = [];
+    const v = (o,k,y) => o?.matched?.[k]?.values?.[y] ?? null;
+    years.forEach(y => {
+      const a=v(B,'total_activo',y), p=v(B,'total_pasivo',y), n=v(B,'total_patrimonio',y);
+      if ([a,p,n].every(x => x !== null)) {
+        const d=a-p-n;
+        if (Math.abs(d)>0.5) alerts.push({level:'crit',title:`Ecuación patrimonial — ${y}`,text:`Activo ${a.toLocaleString('es-PY')} − Pasivo ${p.toLocaleString('es-PY')} − Patrimonio ${n.toLocaleString('es-PY')} = ${d.toLocaleString('es-PY')}.`,formula:'Activo − Pasivo − Patrimonio = 0'});
+      }
+    });
+    if (B && R && years.length >= 2 && v(B,'inventarios',years[years.length-1]) !== null && v(R,'ventas',years[years.length-1]) !== null) {
+      const y0=years[years.length-2], y1=years[years.length-1];
+      const di=pct(v(B,'inventarios',y1),v(B,'inventarios',y0));
+      const dv=pct(v(R,'ventas',y1),v(R,'ventas',y0));
+      if (di!==null && dv!==null && Math.abs(dv-di)>=25) alerts.push({level:'warn',title:`Ruptura de tendencia ventas vs. inventarios — ${y1}`,text:`Ventas ${dv.toFixed(1)}%; inventarios ${di.toFixed(1)}%; diferencia ${(dv-di).toFixed(1)} puntos porcentuales.`,formula:'Variación % = (valor final / valor inicial − 1) × 100'});
+    }
+    return {years,alerts};
+  }
+
+  return {normalize, normalizeCombined, correlate, C, number, norm};
 })();
