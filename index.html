@@ -6,7 +6,32 @@
 <title>Auditoría de Coherencia Financiera</title>
 <link rel="stylesheet" href="styles.css">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div></header>
+<main>
+<section class="card">
+<h2>1. IDENTIFICACIÓN DEL CLIENTE</h2>
+<div class="body grid-4">
+<div><label>Cliente / Razón Social</label><input id="cliente" type="text"></div>
+<div><label>RUC / CI</label><input id="ruc" type="text"></div>
+<div><label>Ejercicio final</label><input id="ejercicio" type="text"></div>
+<div><label>Períodos disponibles</label><input id="periodos" type="text" placeholder="Se detectan automáticamente" readonly></div>
+</div></section>
+<section class="card">
+<h2>2. CARGA DE ESTADOS FINANCIEROS</h2>
+<div class="body uploads">
+<div class="upload-box"><strong>Balance General</strong><input id="balance" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="sb" class="file-status">Sin archivo</div><button class="clear-file" data-clear="balance" type="button">QUITAR ARCHIVO</button></div>
+<div class="upload-box"><strong>Estado de Resultados</strong><input id="resultados" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="sr" class="file-status">Sin archivo</div><button class="clear-file" data-clear="resultados" type="button">QUITAR ARCHIVO</button></div>
+<div class="upload-box"><strong>Flujo de Efectivo (opcional)</strong><input id="flujo" type="file" accept=".xlsx,.xls,.xlsm,.csv"><div id="sf" class="file-status">Sin archivo</div><button class="clear-file" data-clear="flujo" type="button">QUITAR ARCHIVO</button></div>
+</div>
+<div class="body actions"><p><b>El Flujo de Efectivo es opcional.</b> Si no existe, el sistema reconstruirá movimientos posibles a partir de Balance + Resultados y sus variaciones históricas.</p><button id="leer" class="primary" type="button">LEER Y ANALIZAR ARCHIVOS</button><button id="demo" type="button">CARGAR CASO DEMOSTRATIVO</button></div>
+</section>
+<section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA Y NORMALIZACIÓN</h2><div id="controlBody" class="body"></div></section>
+<div id="auditoria" class="hidden"></div>
+</main>
+<script src="normalizador.js"></script>
+<script src="motor_coherencia_financiera.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
