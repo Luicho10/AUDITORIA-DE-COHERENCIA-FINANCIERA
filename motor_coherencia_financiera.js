@@ -1,139 +1,246 @@
-/* MOTOR DE COHERENCIA FINANCIERA
-   Principio de lectura:
-   - Procesa todos los periodos disponibles.
+/* AUDITORIA DE COHERENCIA FINANCIERA - MOTOR ANALITICO
+   OBJETIVO:
+   Detectar inconsistencias, relaciones economicas, movimientos que requieren
+   explicacion y posibles efectos sobre liquidez, capital de trabajo,
+   financiamiento, inversion y calidad del resultado.
+
+   REGLA DE LECTURA:
+   - Todos los periodos disponibles se utilizan para calcular evolucion.
    - El ultimo periodo disponible es el PERIODO ACTUAL.
-   - Los periodos anteriores solo sirven como referencia interna para medir evolucion.
-   - Los hallazgos, titulos e interpretaciones se refieren al PERIODO ACTUAL.
-   - No se generan hallazgos independientes para ejercicios anteriores.
+   - Los años anteriores NO se presentan como hallazgos independientes.
+   - Solo sirven como base de comparacion del periodo actual.
+   - El motor no acusa fraude ni error: identifica señales que deben verificarse.
 */
 window.MotorCoherenciaFinanciera=(()=>{
-  const v=(d,k,y)=>d?.matched?.[k]?.values?.[y]??null;
-  const n=x=>Number.isFinite(Number(x))?Number(x):null;
-  const pct=(a,b)=>n(b)!==null&&n(b)!==0&&n(a)!==null?(n(a)/n(b)-1)*100:null;
-  const h=(nivel,titulo,formula,valores,interpretacion)=>({nivel,titulo,formula,valores,interpretacion});
+  const num=x=>Number.isFinite(Number(x))?Number(x):null;
+  const money=x=>num(x)==null?'—':Number(x).toLocaleString('es-PY',{maximumFractionDigits:0});
+  const pct=(a,b)=>num(a)!=null&&num(b)!=null&&num(b)!==0?(Number(a)/Number(b)-1)*100:null;
+  const val=(d,k,y)=>d?.matched?.[k]?.values?.[y]??null;
+  const has=(...xs)=>xs.every(x=>num(x)!=null);
+  const round=x=>num(x)==null?null:Number(x);
+  const h=(tipo,nivel,titulo,formula,valores,interpretacion,conclusion)=>({tipo,nivel,titulo,formula,valores,interpretacion,conclusion});
+
+  function yearsOf(data){
+    return [...new Set([
+      ...(data?.balance?.periods||[]),
+      ...(data?.resultados?.periods||[]),
+      ...(data?.flujo?.periods||[])
+    ].map(String).filter(y=>/^\d{4}$/.test(y)))].sort();
+  }
+
+  function compare(source,key,actual,previous){
+    const a=val(source,key,actual),p=previous?val(source,key,previous):null;
+    return {actual:a,previous:p,variation:pct(a,p)};
+  }
+
+  function integridad(data,actual){
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const activo=val(b,'total_activo',actual),pasivo=val(b,'total_pasivo',actual),patrimonio=val(b,'total_patrimonio',actual);
+    if(has(activo,pasivo,patrimonio)){
+      const diferencia=activo-pasivo-patrimonio;
+      if(Math.abs(diferencia)>1)a.push(h('inconsistencia','crit','Ecuacion patrimonial no conciliada — '+actual,'Activo − Pasivo − Patrimonio = 0',{periodo_actual:actual,activo,pasivo,patrimonio,diferencia},'El balance del periodo actual no cierra matematicamente.','Debe revisarse la carga, clasificacion o totalizacion antes de utilizar los estados para conclusiones economicas.'));
+    }
+
+    const ventas=val(r,'ventas',actual),costo=val(r,'costo_ventas',actual),bruto=val(r,'resultado_bruto',actual);
+    if(has(ventas,costo,bruto)){
+      const esperado=ventas-costo,diferencia=bruto-esperado;
+      if(Math.abs(diferencia)>1)a.push(h('inconsistencia','crit','Resultado bruto no concilia con ventas y costo — '+actual,'Resultado bruto = Ventas − Costo de ventas',{periodo_actual:actual,ventas,costo_ventas:costo,resultado_bruto:bruto,resultado_bruto_esperado:esperado,diferencia},'El resultado bruto informado no coincide con la relacion matematica basica entre ventas y costo de ventas.','Puede existir reclasificacion, componente adicional del costo o error de carga. Debe verificarse antes de utilizar el margen bruto como indicador de desempeño.'));
+    }
+
+    const ebitda=val(r,'ebitda',actual),ebit=val(r,'ebit',actual);
+    if(has(ebitda,ebit)&&ebitda<ebit)a.push(h('inconsistencia','warn','EBITDA inferior al EBIT — '+actual,'EBITDA ≥ EBIT',{periodo_actual:actual,ebitda,ebit,diferencia:ebitda-ebit},'La relacion informada no presenta la secuencia normalmente esperada entre EBITDA y EBIT.','Debe revisarse la definicion utilizada y la clasificacion de depreciaciones y amortizaciones.'));
+
+    const capex=val(f,'capex',actual),flujoInv=val(f,'flujo_inversion',actual);
+    if(capex!==null||flujoInv!==null)a.push(h('flujo','info','Inversion registrada en el periodo actual — '+actual,'CAPEX / Flujo de inversion',{periodo_actual:actual,capex,flujo_inversion:flujoInv},'El flujo permite contrastar la inversion efectivamente registrada con los cambios observados en propiedad, planta y equipo.','La existencia de CAPEX debe analizarse junto con la evolucion del activo fijo y la capacidad de generacion de fondos; no toda inversion implica una mejora inmediata del resultado.'));
+    return a;
+  }
+
+  function liquidezEstructura(data,actual){
+    const b=data.balance,a=[];
+    const ac=val(b,'total_activo_corriente',actual),pc=val(b,'total_pasivo_corriente',actual);
+    if(has(ac,pc)&&pc!==0){
+      const liq=ac/pc;
+      if(liq<1)a.push(h('inconsistencia','crit','Liquidez corriente insuficiente — '+actual,'Activo corriente / Pasivo corriente',{periodo_actual:actual,activo_corriente:ac,pasivo_corriente:pc,liquidez:liq},'Los activos corrientes no alcanzan para cubrir las obligaciones corrientes.','Existe una presion de corto plazo que debe analizarse junto con caja, cartera, inventarios y proveedores.'));
+      else if(liq<1.2)a.push(h('hallazgo','warn','Liquidez corriente ajustada — '+actual,'Activo corriente / Pasivo corriente',{periodo_actual:actual,activo_corriente:ac,pasivo_corriente:pc,liquidez:liq},'Existe cobertura contable, pero con un margen reducido.','La capacidad de pago depende de que los activos corrientes se realicen en condiciones normales y dentro de los plazos esperados.'));
+    }
+    const activo=val(b,'total_activo',actual),pasivo=val(b,'total_pasivo',actual);
+    if(has(activo,pasivo)&&activo!==0){
+      const e=pasivo/activo*100;
+      if(e>=70)a.push(h('hallazgo','imp','Dependencia elevada de terceros — '+actual,'Pasivo / Activo × 100',{periodo_actual:actual,activo,pasivo,endeudamiento_pct:e},'Una parte muy elevada del activo se encuentra financiada por terceros.','La estructura aumenta la sensibilidad ante menor generacion operativa, problemas de cobranza o mayores costos financieros.'));
+      else if(e>=50)a.push(h('hallazgo','warn','Dependencia significativa de terceros — '+actual,'Pasivo / Activo × 100',{periodo_actual:actual,activo,pasivo,endeudamiento_pct:e},'Existe una participacion relevante de financiamiento de terceros.','Debe evaluarse conjuntamente con generacion operativa, liquidez y respaldo patrimonial.'));
+    }
+    if(has(ac)&&ac>0){
+      const items=[['Inventarios',val(b,'inventarios',actual)],['Creditos comerciales',val(b,'creditos_ventas',actual)],['Caja y Bancos',val(b,'caja_bancos',actual)],['Anticipos a proveedores',val(b,'anticipos_proveedores',actual)],['Otros activos corrientes',val(b,'otros_activos_corrientes',actual)]]
+        .filter(x=>x[1]!==null).map(x=>({cuenta:x[0],importe:x[1],peso:x[1]/ac*100}));
+      const mayor=[...items].sort((x,y)=>y.peso-x.peso)[0];
+      if(mayor&&mayor.peso>=45)a.push(h('hallazgo',mayor.peso>=70?'imp':'warn','Concentracion relevante del activo corriente — '+actual,'Cuenta / Activo corriente × 100',{periodo_actual:actual,activo_corriente:ac,principal:mayor,componentes:items},'Una parte material del activo corriente esta concentrada en una sola cuenta.','La liquidez contable debe contrastarse con la calidad y realizacion del principal componente del activo corriente.'));
+    }
+    return a;
+  }
+
+  function resultados(data,actual,previous){
+    const r=data.resultados,a=[];
+    const ventas=val(r,'ventas',actual),bruto=val(r,'resultado_bruto',actual),ebitda=val(r,'ebitda',actual),ebit=val(r,'ebit',actual),intereses=val(r,'intereses_gasto',actual),neto=val(r,'resultado_neto',actual);
+    if(has(ventas)&&ventas!==0){
+      if(bruto!==null){const m=bruto/ventas*100;if(m<0)a.push(h('inconsistencia','crit','Margen bruto negativo — '+actual,'Resultado bruto / Ventas × 100',{periodo_actual:actual,ventas,resultado_bruto:bruto,margen_pct:m},'El costo de ventas supera las ventas y la actividad comercial no cubre su costo directo.','Debe verificarse precio, costo de mercaderias, valorizacion de inventarios y composicion de las ventas.'));}
+      if(ebitda!==null&&ebitda<0)a.push(h('inconsistencia','crit','EBITDA negativo — '+actual,'EBITDA / Ventas × 100',{periodo_actual:actual,ventas,ebitda,margen_ebitda_pct:ebitda/ventas*100},'La operacion actual no genera excedente antes de depreciaciones y amortizaciones.','La empresa no esta generando resultado operativo suficiente para sostener su estructura. Debe determinarse si la causa esta en margen, gastos, volumen o una combinacion de ellos.'));
+      if(neto!==null&&neto<0)a.push(h('hallazgo','imp','Resultado neto negativo — '+actual,'Resultado neto / Ventas × 100',{periodo_actual:actual,ventas,resultado_neto:neto,margen_neto_pct:neto/ventas*100},'El periodo actual termina con perdida.','La perdida debe explicarse a partir del resultado operativo, costo financiero, diferencia de cambio, impuestos y otros componentes.'));
+    }
+    if(has(ebitda,intereses)&&intereses>0){
+      const cobertura=ebitda/intereses;
+      if(cobertura<1)a.push(h('inconsistencia','crit','Cobertura de intereses insuficiente — '+actual,'EBITDA / Intereses',{periodo_actual:actual,ebitda,intereses,cobertura},'La generacion operativa no alcanza para cubrir los intereses financieros.','La capacidad actual de servicio financiero se encuentra bajo presion y debe contrastarse con caja, deuda y refinanciacion.'));
+      else if(cobertura<1.5)a.push(h('hallazgo','warn','Cobertura de intereses ajustada — '+actual,'EBITDA / Intereses',{periodo_actual:actual,ebitda,intereses,cobertura},'Los intereses estan cubiertos, pero con margen reducido.','Una variacion adversa de la generacion operativa podria comprometer la cobertura.'));
+    }
+    if(previous){
+      const v0=val(r,'ventas',previous),b0=val(r,'resultado_bruto',previous),n0=val(r,'resultado_neto',previous),e0=val(r,'ebitda',previous);
+      if(has(ventas,v0,bruto,b0)&&ventas!==0&&v0!==0){const ma=bruto/ventas*100,mp=b0/v0*100,d=ma-mp;if(Math.abs(d)>=5)a.push(h('tendencia',d<0?'warn':'info','Cambio material del margen bruto — '+actual,'Margen bruto = Resultado bruto / Ventas × 100',{periodo_actual:actual,margen_actual_pct:ma,margen_anterior_pct:mp,cambio_puntos:d},d<0?'El margen comercial se deteriora en el periodo actual.':'El margen comercial mejora en el periodo actual.',d<0?'La menor proporcion de ventas convertida en resultado bruto requiere identificar si proviene de precios, costos o mezcla comercial.':'La mejora debe comprobarse contra costos, precios y mezcla comercial para determinar si es sostenible.'))}
+      if(has(ebitda,e0)&&e0!==0){const ve=pct(ebitda,e0);if(ve!==null&&Math.abs(ve)>=30)a.push(h('tendencia',ve<0?'warn':'info','Cambio material de la generacion operativa — '+actual,'Variacion EBITDA vs periodo antecedente',{periodo_actual:actual,ebitda_actual:ebitda,ebitda_anterior:e0,variacion_pct:ve},ve<0?'La generacion operativa se deteriora materialmente.':'La generacion operativa mejora materialmente.',ve<0?'Debe determinarse si el deterioro proviene de ventas, margen o gastos operativos.':'Debe determinarse si la mejora proviene de mayor actividad, mejor margen o menor estructura de gastos.'))}
+      if(has(neto,n0)&&n0!==0){const vn=pct(neto,n0);if(vn!==null&&(vn>30||vn<-30||n0<0&&neto>0||n0>0&&neto<0))a.push(h('tendencia',neto<0?'warn':'info','Cambio material del resultado neto — '+actual,'Variacion del resultado neto',{periodo_actual:actual,resultado_actual:neto,resultado_anterior:n0,variacion_pct:vn},neto<0?'El resultado final se deteriora o permanece negativo.':'El resultado final mejora en el periodo actual.',neto<0?'Debe identificarse la fuente de la perdida y su recurrencia.':'La mejora debe contrastarse con la generacion operativa para verificar su calidad.'))}
+    }
+    return a;
+  }
+
+  function capitalTrabajo(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,a=[];
+    const ventas=compare(r,'ventas',actual,previous),inv=compare(b,'inventarios',actual,previous),cli=compare(b,'creditos_ventas',actual,previous),prov=compare(b,'proveedores',actual,previous),ac=compare(b,'total_activo_corriente',actual,previous),pc=compare(b,'total_pasivo_corriente',actual,previous);
+
+    if(ventas.variation!==null&&inv.variation!==null){
+      const brecha=inv.variation-ventas.variation;
+      if(brecha>30)a.push(h('correlacion','imp','Inventarios crecen materialmente por encima de las ventas — '+actual,'Variacion inventarios vs. variacion ventas',{periodo_actual:actual,ventas_actuales:ventas.actual,inventarios_actuales:inv.actual,variacion_ventas_pct:ventas.variation,variacion_inventarios_pct:inv.variation,brecha_puntos:brecha},'El stock aumenta a una velocidad significativamente superior a la actividad comercial.','Puede existir acumulacion, menor rotacion, compras anticipadas o sobrestock. Debe verificarse la realizacion y valorizacion de las existencias.'));
+      else if(brecha<-30)a.push(h('correlacion','info','Inventarios evolucionan por debajo de las ventas — '+actual,'Variacion inventarios vs. variacion ventas',{periodo_actual:actual,ventas_actuales:ventas.actual,inventarios_actuales:inv.actual,variacion_ventas_pct:ventas.variation,variacion_inventarios_pct:inv.variation,brecha_puntos:brecha},'Las ventas evolucionan por encima del stock.','La relacion puede indicar una mejor utilizacion del inventario, siempre que no exista riesgo de quiebre de abastecimiento.'));
+    }
+
+    if(ventas.variation!==null&&cli.variation!==null){
+      const brecha=cli.variation-ventas.variation;
+      const cobroReconstruido=has(cli.previous,ventas.actual,cli.actual)?cli.previous+ventas.actual-cli.actual:null;
+      if(brecha>20)a.push(h('correlacion','imp','Cartera comercial crece mas rapido que las ventas — '+actual,'Variacion de creditos vs. variacion de ventas',{periodo_actual:actual,ventas_actuales:ventas.actual,creditos_actuales:cli.actual,variacion_ventas_pct:ventas.variation,variacion_creditos_pct:cli.variation,brecha_puntos:brecha,cobranza_reconstruida:cobroReconstruido},'La cartera crece proporcionalmente mas que las ventas.','Puede reflejar extension de plazos, menor velocidad de cobranza o mayor financiacion a clientes. Debe contrastarse con caja y antiguedad de saldos.'));
+      else if(brecha<-20)a.push(h('correlacion','info','Ventas crecen por encima de la cartera — '+actual,'Variacion de ventas vs. variacion de creditos',{periodo_actual:actual,ventas_actuales:ventas.actual,creditos_actuales:cli.actual,variacion_ventas_pct:ventas.variation,variacion_creditos_pct:cli.variation,brecha_puntos:brecha,cobranza_reconstruida:cobroReconstruido},'La actividad comercial crece mas que la cartera.','La relacion es compatible con mayor proporcion de contado o mejor realizacion de creditos; debe contrastarse con caja.'));
+    }
+
+    if(ventas.variation!==null&&prov.variation!==null){
+      const brecha=prov.variation-ventas.variation;
+      if(brecha>30)a.push(h('correlacion','warn','Proveedores crecen mas rapido que las ventas — '+actual,'Variacion proveedores vs. variacion ventas',{periodo_actual:actual,ventas_actuales:ventas.actual,proveedores_actuales:prov.actual,variacion_ventas_pct:ventas.variation,variacion_proveedores_pct:prov.variation,brecha_puntos:brecha},'Las obligaciones comerciales aumentan por encima de la actividad.','Puede existir mayor dependencia del credito de proveedores y mayor presion futura de pagos. Debe relacionarse con compras y caja.'));
+    }
+
+    if(has(ac.actual,pc.actual,ac.previous,pc.previous)){
+      const lc0=ac.previous/pc.previous,lc1=ac.actual/pc.actual;
+      if(lc1<lc0-0.25)a.push(h('correlacion','warn','La cobertura corriente se deteriora — '+actual,'Liquidez actual vs. liquidez antecedente',{periodo_actual:actual,liquidez_anterior:lc0,liquidez_actual:lc1,cambio:lc1-lc0},'La capacidad de cobertura de corto plazo se reduce en el periodo actual.','Debe determinarse si el deterioro proviene de mayor pasivo corriente, menor activo corriente o una combinacion de ambos.'));
+    }
+
+    return a;
+  }
+
+  function proveedoresRealVsContable(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const pi=val(b,'proveedores',previous),pf=val(b,'proveedores',actual),ii=val(b,'inventarios',previous),inf=val(b,'inventarios',actual),costo=val(r,'costo_ventas',actual),costoAnt=val(r,'costo_ventas',previous);
+    if(!has(pi,pf,ii,inf,costo))return a;
+    const compras=costo+inf-ii;
+    const pagosEstimados=pi+compras-pf;
+    const provVar=pct(pf,pi);
+    const comprasVar=pct(compras,Math.abs(costoAnt));
+    const pagosProv=val(f,'pagos_proveedores',actual);
+
+    if(provVar!==null&&provVar<-30){
+      a.push(h('correlacion','imp','Reduccion significativa de proveedores: movimiento a verificar — '+actual,'Compras estimadas = Costo de ventas + Inventario final − Inventario inicial; Pagos estimados = Proveedores iniciales + Compras − Proveedores finales',{periodo_actual:actual,proveedores_anterior:pi,proveedores_actual:pf,variacion_proveedores_pct:provVar,compras_estimadas:compras,variacion_compras_vs_costo_pct:comprasVar,pagos_estimados:pagosEstimados,pagos_proveedores_informados:pagosProv},'El saldo de proveedores disminuye materialmente en el periodo actual. Con los estados disponibles no es posible afirmar si la baja fue producto de pagos reales o de una reclasificacion contable.','La prueba reconstruye el movimiento economico esperado. Si los pagos a proveedores informados no respaldan la reduccion estimada, debe investigarse reclasificacion, compensacion, castigo, neteo o cancelacion no operativa.'));
+    }
+    if(pagosProv!==null&&Math.abs(pagosProv-pagosEstimados)>Math.max(1,Math.abs(pagosEstimados)*0.20)){
+      a.push(h('correlacion','warn','Pagos a proveedores no guardan correspondencia con el movimiento reconstruido — '+actual,'Pagos estimados vs. pagos informados',{periodo_actual:actual,pagos_estimados:pagosEstimados,pagos_proveedores_informados:pagosProv,diferencia:pagosProv-pagosEstimados},'El movimiento informado de pagos difiere materialmente de la reconstruccion basada en compras, inventarios y proveedores.','La diferencia puede originarse en impuestos, anticipos, reclasificaciones, compras no incluidas o diferencias de corte. Requiere conciliacion documental.'));
+    }
+    return a;
+  }
+
+  function carteraYcobranza(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const ci=val(b,'creditos_ventas',previous),cf=val(b,'creditos_ventas',actual),ventas=val(r,'ventas',actual),cobros=val(f,'cobros_clientes',actual);
+    if(!has(ci,cf,ventas))return a;
+    const cobro=ci+ventas-cf;
+    if(cobros!==null&&Math.abs(cobros-cobro)>Math.max(1,Math.abs(cobro)*0.20))a.push(h('correlacion','warn','Cobranza informada difiere de cobranza reconstruida — '+actual,'Cobranza reconstruida = Creditos iniciales + Ventas − Creditos finales',{periodo_actual:actual,creditos_anterior:ci,ventas,cobros_informados:cobros,cobranza_reconstruida:cobro,diferencia:cobros-cobro},'La cobranza observada en el flujo no coincide materialmente con la cobranza que se desprende de ventas y movimientos de cartera.','Debe verificarse si existen ventas no cobradas, anticipos, notas de credito, impuestos, cesiones, compensaciones o diferencias de corte.'));
+    return a;
+  }
+
+  function capex(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const ppe0=val(b,'ppe',previous),ppe1=val(b,'ppe',actual),capexF=val(f,'capex',actual),depr=val(r,'depreciaciones',actual)??val(r,'depreciacion',actual);
+    if(ppe0===null||ppe1===null)return a;
+    const cambioBruto=ppe1-ppe0;
+    const capexInferido=depr!==null?cambioBruto+depr:null;
+    if(capexF!==null){
+      if(capexInferido!==null&&Math.abs(capexF-capexInferido)>Math.max(1,Math.abs(capexF)*0.25))a.push(h('correlacion','warn','CAPEX informado no coincide con la variacion reconstruida del activo fijo — '+actual,'CAPEX aproximado = ΔActivo fijo + Depreciacion',{periodo_actual:actual,activo_fijo_anterior:ppe0,activo_fijo_actual:ppe1,cambio_activo_fijo:cambioBruto,depreciacion:depr,capex_informado:capexF,capex_inferido:capexInferido,diferencia:capexF-capexInferido},'El flujo de inversion y el balance no muestran una correspondencia aproximada.','La diferencia puede responder a bajas de activos, adquisiciones sin pago inmediato, anticipos, revaluaciones, reclasificaciones o diferencias de criterio. Debe verificarse documentalmente.'));
+      else a.push(h('flujo','info','CAPEX y activo fijo identificados — '+actual,'CAPEX y variacion de propiedad, planta y equipo',{periodo_actual:actual,activo_fijo_anterior:ppe0,activo_fijo_actual:ppe1,capex_informado:capexF,cambio_activo_fijo:cambioBruto},'Se dispone de informacion de inversion y de activo fijo para contrastar ambas fuentes.','La prueba debe utilizarse para determinar si la inversion registrada en flujo tiene respaldo patrimonial y si el crecimiento del activo fijo fue financiado efectivamente.'));
+    }else if(cambioBruto>0){
+      a.push(h('correlacion','warn','Aumento del activo fijo sin CAPEX identificado en flujo — '+actual,'Variacion del activo fijo',{periodo_actual:actual,activo_fijo_anterior:ppe0,activo_fijo_actual:ppe1,cambio_activo_fijo:cambioBruto},'El activo fijo aumenta pero no se identifica CAPEX en el flujo disponible.','Puede tratarse de adquisiciones a credito, reclasificaciones, aportes en especie, revaluaciones u omision del movimiento de inversion. Debe indagarse el origen del aumento.'));
+    }
+    return a;
+  }
+
+  function financiamiento(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const d0=val(b,'prestamos_cp',previous),d1=val(b,'prestamos_cp',actual),interes=val(r,'intereses_gasto',actual),c0=val(b,'caja_bancos',previous),c1=val(b,'caja_bancos',actual),ebitda=val(r,'ebitda',actual),rec=val(f,'prestamos_recibidos',actual),pag=val(f,'prestamos_pagados',actual);
+    if(has(d0,d1)){
+      const vd=pct(d1,d0),vc=has(c0,c1)?pct(c1,c0):null;
+      if(vd!==null&&vd>30&&vc!==null&&vc<-20)a.push(h('correlacion','imp','Mayor deuda financiera y menor caja — '+actual,'Variacion deuda vs. variacion caja',{periodo_actual:actual,deuda_anterior:d0,deuda_actual:d1,variacion_deuda_pct:vd,caja_anterior:c0,caja_actual:c1,variacion_caja_pct:vc},'La deuda de corto plazo aumenta mientras la caja disminuye.','La combinacion es compatible con presion de liquidez y debe contrastarse con generacion operativa y destino del financiamiento.'));
+      if(rec!==null||pag!==null)a.push(h('flujo','info','Deuda financiera conciliable con flujo — '+actual,'Saldo inicial + prestamos recibidos − prestamos pagados ≈ saldo final',{periodo_actual:actual,deuda_anterior:d0,deuda_actual:d1,prestamos_recibidos:rec,prestamos_pagados:pag,variacion_saldo:d1-d0},'El movimiento de deuda puede contrastarse con los flujos de financiacion.','La diferencia entre movimiento de saldo y flujos informados puede revelar intereses capitalizados, refinanciaciones, reclasificaciones u otros movimientos no identificados.'));
+    }
+    if(has(ebitda,interes)&&interes>0&&has(d0,d1)){const vd=pct(d1,d0);if(vd!==null&&vd>25&&ebitda<0)a.push(h('correlacion','imp','Financiamiento aumenta mientras la generacion operativa es negativa — '+actual,'Deuda + EBITDA',{periodo_actual:actual,variacion_deuda_pct:vd,ebitda,intereses},'La empresa aumenta financiamiento financiero en un periodo en que la operacion presenta generacion negativa.','Debe determinarse si la nueva deuda financia inversion productiva, capital de trabajo o cubre perdidas operativas.'))}
+    return a;
+  }
+
+  function patrimonio(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,f=data.flujo,a=[];
+    const p0=val(b,'total_patrimonio',previous),p1=val(b,'total_patrimonio',actual),neto=val(r,'resultado_neto',actual),aportes=val(f,'aportes',actual),div=val(f,'dividendos',actual);
+    if(has(p0,p1,neto)){
+      const cambio=p1-p0,exp=neto+(aportes||0)-(div||0),dif=cambio-exp;
+      if(Math.abs(dif)>Math.max(1,Math.abs(exp)*0.15))a.push(h('inconsistencia','warn','Variacion patrimonial no explicada por resultado y movimientos de capital — '+actual,'Δ Patrimonio ≈ Resultado neto + Aportes − Dividendos',{periodo_actual:actual,patrimonio_anterior:p0,patrimonio_actual:p1,cambio_patrimonial:cambio,resultado_neto:neto,aportes,dividendos:div,variacion_esperada:exp,diferencia:dif},'El cambio patrimonial no queda explicado razonablemente por el resultado y los movimientos de capital identificados.','Debe revisarse reservas, ajustes, revaluaciones, resultados acumulados, retiros, aportes no identificados o reclasificaciones.'));
+    }
+    return a;
+  }
+
+  function tendencias(data,actual,previous){
+    if(!previous)return [];
+    const b=data.balance,r=data.resultados,a=[];
+    const series=[
+      ['Ventas',r,'ventas'],['Costo de ventas',r,'costo_ventas'],['Resultado bruto',r,'resultado_bruto'],['EBITDA',r,'ebitda'],['Resultado neto',r,'resultado_neto'],
+      ['Activo total',b,'total_activo'],['Pasivo total',b,'total_pasivo'],['Patrimonio neto',b,'total_patrimonio'],['Inventarios',b,'inventarios'],['Creditos comerciales',b,'creditos_ventas'],['Proveedores',b,'proveedores'],['Caja y Bancos',b,'caja_bancos']
+    ];
+    series.forEach(([nombre,d,key])=>{
+      const p=val(d,key,previous),c=val(d,key,actual);
+      if(!has(p,c)||p===0)return;
+      const v=pct(c,p);
+      if(v===null||Math.abs(v)<35)return;
+      let nivel='warn',lectura='';
+      if(nombre==='Resultado neto'&&p<0&&c>0){nivel='info';lectura='El resultado actual cambia de signo y pasa a terreno positivo.'}
+      else if(nombre==='Resultado neto'&&p>0&&c<0){nivel='imp';lectura='El resultado actual cambia de signo y pasa a perdida.'}
+      else lectura=v>0?'El saldo aumenta materialmente en el periodo actual.':'El saldo disminuye materialmente en el periodo actual.';
+      a.push(h('tendencia',nivel,`Cambio material de ${nombre} — ${actual}`,'Variacion = (valor actual / valor antecedente − 1) × 100',{periodo_actual:actual,valor_anterior:p,valor_actual:c,variacion_pct:v},lectura,nombre==='Ventas'?(v>0?'El crecimiento de ventas es favorable solo si conserva margen y capacidad de cobranza.':'La contraccion de ventas debe relacionarse con margen, gastos y capital de trabajo.'):`La variacion de ${nombre.toLowerCase()} debe interpretarse en conjunto con las demas relaciones financieras del periodo actual.`));
+    });
+    return a;
+  }
 
   function ejecutar(data){
-    const b=data?.balance,r=data?.resultados,flujo=data?.flujo;
-    const years=[...new Set([...(b?.periods||[]),...(r?.periods||[]),...(flujo?.periods||[])])]
-      .map(String).filter(y=>/^\d{4}$/.test(y)).sort();
-    const actual=years[years.length-1];
-    const anterior=years.length>1?years[years.length-2]:null;
-    const a=[];
-    if(!actual)return{years,hallazgos:a,actual:null,anterior:null};
+    const years=yearsOf(data),actual=years.at(-1)||null,previous=years.length>1?years.at(-2):null;
+    if(!actual)return{years,hallazgos:[],actual:null,previous:null};
+    let a=[];
+    a=a.concat(integridad(data,actual));
+    a=a.concat(liquidezEstructura(data,actual));
+    a=a.concat(resultados(data,actual,previous));
+    a=a.concat(capitalTrabajo(data,actual,previous));
+    a=a.concat(proveedoresRealVsContable(data,actual,previous));
+    a=a.concat(carteraYcobranza(data,actual,previous));
+    a=a.concat(capex(data,actual,previous));
+    a=a.concat(financiamiento(data,actual,previous));
+    a=a.concat(patrimonio(data,actual,previous));
+    a=a.concat(tendencias(data,actual,previous));
 
-    const comparar=(source,key)=>{
-      const cur=v(source,key,actual),prev=anterior?v(source,key,anterior):null;
-      return {actual:cur,anterior:prev,variacion:pct(cur,prev)};
-    };
-
-    // =========================================================
-    // 1. ECUACION PATRIMONIAL - SOLO PERIODO ACTUAL
-    // =========================================================
-    if(b){
-      const ac=v(b,'total_activo',actual),pa=v(b,'total_pasivo',actual),pn=v(b,'total_patrimonio',actual);
-      if(ac!==null&&pa!==null&&pn!==null){
-        const d=ac-pa-pn;
-        a.push(h(Math.abs(d)>1?'crit':'info',
-          Math.abs(d)>1?'Inconsistencia en la ecuacion patrimonial — '+actual:'Ecuacion patrimonial conciliada — '+actual,
-          'Activo − Pasivo − Patrimonio = 0',
-          {periodo_actual:actual,activo:ac,pasivo:pa,patrimonio:pn,diferencia:d},
-          Math.abs(d)>1
-            ?'El balance del periodo actual no cierra matematicamente. La informacion requiere revision antes de considerar confiables las conclusiones derivadas de su estructura patrimonial.'
-            :'El balance del periodo actual presenta cierre matematico. Esta prueba valida la igualdad contable, pero no demuestra por si sola la razonabilidad economica de las cuentas.'
-        ));
-      }
-
-      // =========================================================
-      // 2. LIQUIDEZ ACTUAL
-      // =========================================================
-      const acorr=v(b,'total_activo_corriente',actual),pcorr=v(b,'total_pasivo_corriente',actual);
-      if(acorr!==null&&pcorr!==null&&pcorr!==0){
-        const liq=acorr/pcorr;
-        if(liq<1)a.push(h('crit','Liquidez corriente insuficiente — '+actual,'Activo corriente / Pasivo corriente',{periodo_actual:actual,activo_corriente:acorr,pasivo_corriente:pcorr,liquidez:liq},'El activo corriente no alcanza para cubrir las obligaciones corrientes del periodo actual. Existe una presion de corto plazo que debe analizarse conjuntamente con caja, cartera, inventarios y proveedores.'));
-        else if(liq<1.2)a.push(h('warn','Liquidez corriente ajustada — '+actual,'Activo corriente / Pasivo corriente',{periodo_actual:actual,activo_corriente:acorr,pasivo_corriente:pcorr,liquidez:liq},'La cobertura corriente es positiva pero presenta un margen reducido frente a las obligaciones de corto plazo. La calidad y realizacion de los activos corrientes resulta relevante.'));
-      }
-
-      // =========================================================
-      // 3. CONCENTRACION DEL ACTIVO CORRIENTE - ACTUAL
-      // =========================================================
-      if(acorr&&acorr>0){
-        const componentes=[['Inventarios',v(b,'inventarios',actual)],['Creditos comerciales',v(b,'creditos_ventas',actual)],['Caja y Bancos',v(b,'caja_bancos',actual)],['Anticipos a proveedores',v(b,'anticipos_proveedores',actual)],['Otros activos corrientes',v(b,'otros_activos_corrientes',actual)]]
-          .filter(x=>x[1]!==null).map(x=>({cuenta:x[0],importe:x[1],peso:x[1]/acorr*100}));
-        const m=[...componentes].sort((x,z)=>z.peso-x.peso)[0];
-        if(m&&m.peso>=45)a.push(h(m.peso>=70?'imp':'warn','Concentracion relevante del activo corriente — '+actual,'Cuenta / Activo corriente × 100',{periodo_actual:actual,activo_corriente:acorr,principal:m,componentes},'Una proporcion relevante del activo corriente se concentra en '+m.cuenta.toLowerCase()+'. La lectura debe considerar su capacidad real de conversion en efectivo y su relacion con la actividad del periodo actual.'));
-      }
-
-      // =========================================================
-      // 4. ESTRUCTURA DE FINANCIAMIENTO ACTUAL
-      // =========================================================
-      const at=v(b,'total_activo',actual),pt=v(b,'total_pasivo',actual);
-      if(at&&pt!==null){
-        const ende=pt/at*100;
-        if(ende>=70)a.push(h('imp','Dependencia elevada de terceros — '+actual,'Pasivo / Activo × 100',{periodo_actual:actual,pasivo:pt,activo:at,endeudamiento_pct:ende},'La estructura patrimonial del periodo actual presenta una elevada participacion de financiamiento de terceros. Esto incrementa la sensibilidad de la empresa frente a menor generacion operativa, dificultades de cobranza o aumento del costo financiero.'));
-        else if(ende>=50)a.push(h('warn','Dependencia significativa de terceros — '+actual,'Pasivo / Activo × 100',{periodo_actual:actual,pasivo:pt,activo:at,endeudamiento_pct:ende},'Una parte significativa de los activos se encuentra financiada por terceros. Debe analizarse conjuntamente con la generacion operativa y la capacidad de servicio de deuda.'));
-      }
-    }
-
-    // =========================================================
-    // 5. RESULTADOS DEL PERIODO ACTUAL
-    // =========================================================
-    if(r){
-      const ventas=v(r,'ventas',actual),costo=v(r,'costo_ventas',actual),bruto=v(r,'resultado_bruto',actual),ebitda=v(r,'ebitda',actual),ebit=v(r,'ebit',actual),neto=v(r,'resultado_neto',actual),intereses=v(r,'intereses_gasto',actual);
-
-      if(ventas!==null&&costo!==null&&bruto!==null){
-        const esperado=ventas-costo,d=bruto-esperado;
-        if(Math.abs(d)>1)a.push(h('crit','Resultado bruto no concilia — '+actual,'Resultado bruto = Ventas − Costo de ventas',{periodo_actual:actual,ventas,costo_ventas:costo,resultado_bruto:bruto,esperado,diferencia:d},'El resultado bruto informado no coincide con la diferencia entre ventas y costo de ventas. Existe una inconsistencia aritmetica que debe verificarse.'));
-      }
-
-      if(ventas!==null&&ventas!==0){
-        if(bruto!==null){const m=bruto/ventas*100;if(m<0)a.push(h('crit','Margen bruto negativo — '+actual,'Resultado bruto / Ventas × 100',{periodo_actual:actual,ventas,resultado_bruto:bruto,margen_pct:m},'El periodo actual no recupera el costo de ventas mediante la actividad comercial. La formacion del precio y/o la estructura de costos requiere revision.'));}
-        if(ebitda!==null&&ebitda<0)a.push(h('crit','EBITDA negativo — '+actual,'EBITDA / Ventas × 100',{periodo_actual:actual,ventas,ebitda,margen_ebitda_pct:ebitda/ventas*100},'La operacion del periodo actual no genera excedente antes de depreciaciones y amortizaciones. La situacion debe contrastarse con margen bruto, gastos operativos y carga financiera.'));
-        if(neto!==null&&neto<0)a.push(h('imp','Resultado neto negativo — '+actual,'Resultado neto / Ventas × 100',{periodo_actual:actual,ventas,resultado_neto:neto,margen_neto_pct:neto/ventas*100},'El periodo actual termina con perdida. Debe identificarse si la causa proviene de la operacion, del costo financiero, diferencias de cambio u otros componentes no operativos.'));
-      }
-
-      if(ebitda!==null&&ebit!==null&&ebitda<ebit)a.push(h('warn','Relacion EBITDA / EBIT requiere revision — '+actual,'EBITDA ≥ EBIT',{periodo_actual:actual,ebitda,ebit},'La relacion informada entre EBITDA y EBIT no presenta la secuencia esperada. Debe revisarse la clasificacion de depreciaciones y amortizaciones y la composicion del resultado operativo.'));
-
-      if(ebitda!==null&&intereses!==null&&intereses>0){
-        const cobertura=ebitda/intereses;
-        if(cobertura<1)a.push(h('crit','Cobertura de intereses insuficiente — '+actual,'EBITDA / Intereses',{periodo_actual:actual,ebitda,intereses,cobertura},'La generacion operativa del periodo actual no alcanza para cubrir los intereses financieros. Esto constituye una señal relevante de presion sobre la capacidad de servicio financiero.'));
-        else if(cobertura<1.5)a.push(h('warn','Cobertura de intereses ajustada — '+actual,'EBITDA / Intereses',{periodo_actual:actual,ebitda,intereses,cobertura},'La generacion operativa cubre los intereses, pero con un margen reducido. La sostenibilidad de la cobertura debe verificarse.'));
-      }
-    }
-
-    // =========================================================
-    // 6. CORRELACIONES: ACTUAL CONTRA ANTECEDENTE
-    //    El titulo y la interpretacion hablan del actual; el
-    //    periodo anterior solo aparece como referencia de calculo.
-    // =========================================================
-    if(b&&r&&anterior){
-      const ventas=comparar(r,'ventas'),cli=comparar(b,'creditos_ventas'),inv=comparar(b,'inventarios'),prov=comparar(b,'proveedores');
-
-      if(ventas.variacion!==null&&cli.variacion!==null){
-        const brecha=cli.variacion-ventas.variacion;
-        if(brecha>20)a.push(h('imp','Cartera comercial crece mas rapido que las ventas — '+actual,'Variacion de creditos comerciales vs. variacion de ventas',{periodo_actual:actual,variacion_ventas_pct:ventas.variacion,variacion_creditos_pct:cli.variacion,brecha_puntos:brecha,credito_actual:cli.actual,ventas_actuales:ventas.actual},'En el periodo actual, los creditos comerciales aumentan proporcionalmente mas que las ventas. La situacion puede reflejar extension de plazos, menor velocidad de cobranza o mayor financiacion a clientes y requiere verificacion de la cartera.'));
-        else if(brecha<-20)a.push(h('info','Ventas crecen por encima de la cartera — '+actual,'Variacion de ventas vs. variacion de creditos comerciales',{periodo_actual:actual,variacion_ventas_pct:ventas.variacion,variacion_creditos_pct:cli.variacion,brecha_puntos:brecha,credito_actual:cli.actual,ventas_actuales:ventas.actual},'En el periodo actual, la actividad comercial crece mas rapidamente que la cartera. La relacion es compatible con una mayor proporcion de ventas de contado o una mejor realizacion de creditos.'));
-      }
-
-      if(ventas.variacion!==null&&inv.variacion!==null){
-        const brecha=inv.variacion-ventas.variacion;
-        if(brecha>30)a.push(h('imp','Inventarios crecen mas que las ventas — '+actual,'Variacion de inventarios vs. variacion de ventas',{periodo_actual:actual,variacion_inventario_pct:inv.variacion,variacion_ventas_pct:ventas.variacion,brecha_puntos:brecha,inventario_actual:inv.actual,ventas_actuales:ventas.actual},'En el periodo actual, los inventarios crecen a un ritmo materialmente superior al de las ventas. Esto puede indicar acumulacion de stock o una menor rotacion y debe contrastarse con la naturaleza de la actividad.'));
-        else if(brecha<-30)a.push(h('info','Inventarios evolucionan por debajo de las ventas — '+actual,'Variacion de inventarios vs. variacion de ventas',{periodo_actual:actual,variacion_inventario_pct:inv.variacion,variacion_ventas_pct:ventas.variacion,brecha_puntos:brecha,inventario_actual:inv.actual,ventas_actuales:ventas.actual},'En el periodo actual, las ventas evolucionan por encima de los inventarios. La relacion es compatible con una utilizacion mas eficiente del stock, siempre que no exista riesgo de quiebre de abastecimiento.'));
-      }
-
-      if(ventas.variacion!==null&&prov.variacion!==null){
-        const brecha=prov.variacion-ventas.variacion;
-        if(brecha>30)a.push(h('warn','Proveedores crecen mas que las ventas — '+actual,'Variacion de proveedores vs. variacion de ventas',{periodo_actual:actual,variacion_proveedores_pct:prov.variacion,variacion_ventas_pct:ventas.variacion,brecha_puntos:brecha,proveedores_actuales:prov.actual,ventas_actuales:ventas.actual},'En el periodo actual, las obligaciones con proveedores aumentan por encima de la actividad comercial. Esto puede señalar mayor dependencia del financiamiento comercial y requiere relacionarlo con compras, caja y ciclo operativo.'));
-      }
-
-      const bruto=comparar(r,'resultado_bruto'),neto=comparar(r,'resultado_neto');
-      if(ventas.variacion!==null&&bruto.variacion!==null){
-        const margenActual=ventas.actual&&bruto.actual!==null?bruto.actual/ventas.actual*100:null;
-        const margenPrev=ventas.anterior&&bruto.anterior!==null?bruto.anterior/ventas.anterior*100:null;
-        if(margenActual!==null&&margenPrev!==null&&Math.abs(margenActual-margenPrev)>=5)a.push(h(margenActual<margenPrev?'warn':'info','Margen bruto cambia materialmente — '+actual,'Resultado bruto / Ventas × 100',{periodo_actual:actual,margen_actual_pct:margenActual,margen_antecedente_pct:margenPrev,cambio_puntos:margenActual-margenPrev,ventas_actuales:ventas.actual,resultado_bruto_actual:bruto.actual},margenActual<margenPrev?'El periodo actual presenta deterioro del margen comercial respecto del nivel antecedente. La reduccion indica que una menor proporcion de las ventas se transforma en resultado bruto.':'El periodo actual presenta mejora del margen comercial respecto del nivel antecedente. La mejora indica que una mayor proporcion de las ventas queda como resultado bruto.'));
-      }
-    }
-
-    return {years,hallazgos:a,actual,anterior};
+    const priority={crit:0,imp:1,warn:2,info:3};
+    const seen=new Set();
+    a=a.filter(x=>{const k=x.tipo+'|'+x.titulo;if(seen.has(k))return false;seen.add(k);return true;}).sort((x,y)=>priority[x.nivel]-priority[y.nivel]);
+    return{years,hallazgos:a,actual,previous};
   }
   return{ejecutar};
 })();
