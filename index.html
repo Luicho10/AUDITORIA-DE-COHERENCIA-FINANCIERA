@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Auditoría de Coherencia Financiera</title>
-<link rel="stylesheet" href="styles.css?v=20260820-1">
+<link rel="stylesheet" href="styles.css?v=20260820-2">
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -25,14 +25,14 @@ function showApp(){document.getElementById('login').classList.add('hidden');docu
 async function login(){const email=document.getElementById('usuario').value.trim(),password=document.getElementById('password').value,status=document.getElementById('loginStatus');if(!email||!password){status.textContent='Ingrese usuario y contraseña.';return}status.textContent='Verificando acceso...';try{const response=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_PUBLISHABLE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email,password})});let data={};try{data=await response.json()}catch(_){}if(!response.ok){status.textContent='No se pudo ingresar: '+(data.error_description||data.msg||data.message||('HTTP '+response.status));return}if(data.access_token){localStorage.setItem('siaf_access_token',data.access_token);localStorage.setItem('siaf_refresh_token',data.refresh_token||'');status.textContent='Acceso autorizado.';showApp();return}status.textContent='No se pudo ingresar: respuesta de autenticación incompleta.'}catch(error){status.textContent='No se pudo conectar con Supabase: '+error.message}}
 document.getElementById('ingresar').addEventListener('click',login);document.getElementById('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 </script>
-<script src="normalizador.js?v=20260820-1"></script>
-<script src="motor_coherencia_financiera.js?v=20260820-1"></script>
+<script src="normalizador.js?v=20260820-2"></script>
+<script src="motor_coherencia_financiera.js?v=20260820-2"></script>
 <script>if(typeof MotorCoherenciaFinanciera!=='undefined'){window.MotorCoherenciaFinanciera=MotorCoherenciaFinanciera;}</script>
-<script src="app.js?v=20260820-1"></script>
-<script src="vista_normalizacion.js?v=20260820-1"></script>
+<script src="app.js?v=20260820-2"></script>
+<script src="vista_normalizacion.js?v=20260820-2"></script>
 <script>
 function find(arr,tipo,titulo,conclusion,causa,evidencia){if(Array.isArray(arr))arr.push({tipo,titulo,conclusion,causa,evidencia});}
 </script>
-<script src="auditoria_ui.js?v=20260820-3"></script>
+<script src="auditoria_ui.js?v=20260820-4"></script>
 <script src="auditoria_boot.js?v=20260820-1"></script>
 </body></html>
