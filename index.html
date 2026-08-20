@@ -30,5 +30,13 @@ document.getElementById('ingresar').addEventListener('click',login);document.get
 <script>if(typeof MotorCoherenciaFinanciera!=='undefined'){window.MotorCoherenciaFinanciera=MotorCoherenciaFinanciera;}</script>
 <script src="app.js?v=20260820-1"></script>
 <script src="vista_normalizacion.js?v=20260820-1"></script>
-<script src="auditoria_ui.js?v=20260820-2"></script>
+<script>
+/* Compatibilidad: una versión del motor interpretativo usa find(...) como helper.
+   Se define localmente antes de cargar la auditoría para evitar que un error de referencia
+   interrumpa todo el renderizado posterior a la normalización. */
+function find(arr,tipo,titulo,conclusion,causa,evidencia){
+  if(Array.isArray(arr)) arr.push({tipo,titulo,conclusion,causa,evidencia});
+}
+</script>
+<script src="auditoria_ui.js?v=20260820-3"></script>
 </body></html>
