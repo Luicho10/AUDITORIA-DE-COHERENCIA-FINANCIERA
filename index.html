@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V0.7</b></header>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V1 · ETAPA 1</b></header>
 <main class="wrap">
 <section id="login" class="card login-card">
 <h2>ACCESO AL SISTEMA</h2>
@@ -24,17 +24,15 @@
 <section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid">
 <div><label>Cliente / Razón Social</label><input id="cliente"></div>
 <div><label>RUC / CI</label><input id="ruc"></div>
-<div><label>Ejercicio final</label><input id="ejercicio"></div>
+<div><label>Ejercicio final</label><input id="ejercicio" readonly></div>
 <div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div>
 </div></section>
 <section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body">
 <div class="filebox">
-<div><b>Balance General</b><input id="balance" type="file" accept=".xlsx,.xls,.csv"><span id="sb">Sin archivo</span></div>
-<div><b>Estado de Resultados</b><input id="resultados" type="file" accept=".xlsx,.xls,.csv"><span id="sr">Sin archivo</span></div>
-<div><b>Flujo de Efectivo</b><input id="flujo" type="file" accept=".xlsx,.xls,.csv"><span id="sf">Sin archivo</span></div>
+<div><b>ARCHIVO ÚNICO</b><input id="archivoUnico" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="archivoNombre">Sin archivo</span></div>
 </div>
-<p class="muted"><b>Primero se controla la lectura.</b> El sistema muestra hojas, períodos, cuentas reconocidas y valores tomados antes de emitir conclusiones.</p>
-<div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR ARCHIVOS</button><button class="btn secondary" id="demo">CARGAR CASO DEMOSTRATIVO</button></div>
+<p class="muted"><b>Una sola carga.</b> El sistema lee el archivo completo y separa internamente Balance General y Estado de Resultados antes de ejecutar cualquier auditoría.</p>
+<div class="actions"><button class="btn primary" id="leer">LEER Y CONTROLAR ARCHIVO</button><button class="btn secondary" id="limpiar">LIMPIAR</button></div>
 </div></section>
 <section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA Y NORMALIZACIÓN</h2><div class="body" id="controlBody"></div></section>
 <section id="auditoria" class="hidden"></section>
@@ -52,4 +50,5 @@ document.getElementById('ingresar').addEventListener('click', function(){
  document.getElementById('app').classList.remove('hidden');
 });
 </script>
-</body></html>
+</body>
+</html>
