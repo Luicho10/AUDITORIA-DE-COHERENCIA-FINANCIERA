@@ -5,8 +5,6 @@ window.AuditoriaNormalizador = (() => {
     if (typeof v === 'number') {
       const n=Number(v);
       if(Number.isInteger(n)&&n>=1900&&n<=2100)return[String(n)];
-      // Excel puede entregar una fecha como número serial cuando la celda no
-      // conserva correctamente el formato de fecha. Convertimos esos seriales.
       if(Number.isFinite(n)&&n>=30000&&n<=60000){
         const d=new Date(Date.UTC(1899,11,30)+n*86400000),y=d.getUTCFullYear();
         return Number.isFinite(y)&&y>=1900&&y<=2100?[String(y)]:[];
@@ -28,41 +26,39 @@ window.AuditoriaNormalizador = (() => {
     balance:{
       caja_bancos:['caja','caja y bancos','bancos','disponible','disponibilidades','efectivo','efectivo y equivalentes'],
       creditos_ventas:['creditos por ventas','cuentas por cobrar','clientes','deudores por ventas','creditos comerciales'],
-      inventarios:['inventarios','inventario','existencias','mercaderias','stock'],
-      anticipos_proveedores:['anticipos a proveedores','anticipos proveedores'],otros_activos_corrientes:['otros activos corrientes','otros activos cp'],
-      ppe:['propiedad planta y equipo','propiedad, planta y equipo','bienes de uso','activo fijo','activos fijos','inmovilizado material'],
-      otros_activos_no_corrientes:['otros activos no corrientes','otros activos lp'],
-      proveedores:['proveedores','cuentas por pagar a proveedores','proveedores nacionales','proveedores del exterior','deudas comerciales'],
-      prestamos_cp:['prestamos corrientes','prestamos corto plazo','deudas financieras corrientes','prestamos bancarios cp','deudas financieras cp'],
-      prestamos_lp:['prestamos no corrientes','prestamos largo plazo','deudas financieras no corrientes','prestamos bancarios lp','deudas financieras lp'],
-      deudas_fiscales:['deudas fiscales','impuestos a pagar','tributos a pagar'],deudas_sociales:['deudas sociales','sueldos y cargas sociales','cargas sociales'],acreedores_varios:['acreedores varios'],
+      inventarios:['inventarios','inventario','existencias','mercaderias','stock'],anticipos_proveedores:['anticipos a proveedores','anticipos proveedores'],otros_activos_corrientes:['otros activos corrientes','otros activos cp'],
+      ppe:['propiedad planta y equipo','propiedad, planta y equipo','bienes de uso','activo fijo','activos fijos','inmovilizado material'],otros_activos_no_corrientes:['otros activos no corrientes','otros activos lp'],
+      proveedores:['proveedores','cuentas por pagar a proveedores','proveedores nacionales','proveedores del exterior','deudas comerciales'],prestamos_cp:['prestamos corrientes','prestamos corto plazo','deudas financieras corrientes','prestamos bancarios cp','deudas financieras cp'],prestamos_lp:['prestamos no corrientes','prestamos largo plazo','deudas financieras no corrientes','prestamos bancarios lp','deudas financieras lp'],deudas_fiscales:['deudas fiscales','impuestos a pagar','tributos a pagar'],deudas_sociales:['deudas sociales','sueldos y cargas sociales','cargas sociales'],acreedores_varios:['acreedores varios'],
       capital:['capital','capital social'],reservas:['reservas','reserva legal','reservas legales'],resultados_acumulados:['resultados acumulados','resultados no asignados','utilidades acumuladas','perdidas acumuladas'],resultado_ejercicio:['resultado del ejercicio','resultado neto del ejercicio','utilidad del ejercicio','perdida del ejercicio'],
       total_activo:['total activo','total de activos'],total_activo_corriente:['total activo corriente'],total_activo_no_corriente:['total activo no corriente'],total_pasivo:['total pasivo','total de pasivos'],total_pasivo_corriente:['total pasivo corriente'],total_pasivo_no_corriente:['total pasivo no corriente'],total_patrimonio:['total patrimonio','patrimonio neto','total patrimonio neto']
     },
     resultados:{
-      ventas:['ventas netas','ventas','ingresos por ventas','ingresos de actividades ordinarias'],costo_ventas:['costo de ventas','costo de mercaderias vendidas','costo de mercaderias','costos de ventas'],
-      resultado_bruto:['resultado bruto comercial principal','resultado bruto total','resultado bruto','utilidad bruta','ganancia bruta'],gastos_comerciales:['gastos de comercializacion','gastos comerciales','gastos de ventas','gastos operativos, administrativos y de ventas'],gastos_administrativos:['gastos de administracion','gastos administrativos'],otros_gastos_operativos:['otros egresos operativos','otros gastos operativos'],
-      diferencia_cambio:['perdidas por diferencia de cambio','ganancias por diferencia de cambio','diferencia de cambio'],intereses_gasto:['intereses financieros pagados','intereses pagados','intereses perdidos','gastos financieros','costos financieros'],intereses_ingreso:['intereses financieros cobrados','intereses ganados','ingresos financieros'],
-      depreciaciones:['depreciaciones','depreciacion','depreciaciones del ejercicio','depreciacion del ejercicio'],amortizaciones:['amortizaciones','amortizacion','amortizaciones del ejercicio','amortizacion del ejercicio'],
-      ebitda:['ebitda','flujo operativo puro','flujo operativo puro/caja real'],ebit:['ebit','resultado operativo','resultado operativo contable'],resultado_antes_impuesto:['resultado antes del impuesto','resultado antes de impuestos','resultado antes de impuesto'],impuesto_renta:['impuesto a la renta','impuesto a las ganancias'],resultado_neto:['resultado neto total del ejercicio','resultado neto de capitalizaciones','resultado neto','utilidad neta','ganancia neta','perdida neta']
+      ventas:['ventas netas','ventas','ingresos por ventas','ingresos de actividades ordinarias'],costo_ventas:['costo de ventas','costo de mercaderias vendidas','costo de mercaderias','costos de ventas'],resultado_bruto:['resultado bruto comercial principal','resultado bruto total','resultado bruto','utilidad bruta','ganancia bruta'],gastos_comerciales:['gastos de comercializacion','gastos comerciales','gastos de ventas','gastos operativos, administrativos y de ventas'],gastos_administrativos:['gastos de administracion','gastos administrativos'],otros_gastos_operativos:['otros egresos operativos','otros gastos operativos'],diferencia_cambio:['perdidas por diferencia de cambio','ganancias por diferencia de cambio','diferencia de cambio'],intereses_gasto:['intereses financieros pagados','intereses pagados','intereses perdidos','gastos financieros','costos financieros'],intereses_ingreso:['intereses financieros cobrados','intereses ganados','ingresos financieros'],depreciaciones:['depreciaciones','depreciacion','depreciaciones del ejercicio','depreciacion del ejercicio'],amortizaciones:['amortizaciones','amortizacion','amortizaciones del ejercicio','amortizacion del ejercicio'],ebitda:['ebitda','flujo operativo puro','flujo operativo puro/caja real'],ebit:['ebit','resultado operativo','resultado operativo contable'],resultado_antes_impuesto:['resultado antes del impuesto','resultado antes de impuestos','resultado antes de impuesto'],impuesto_renta:['impuesto a la renta','impuesto a las ganancias'],resultado_neto:['resultado neto total del ejercicio','resultado neto de capitalizaciones','resultado neto','utilidad neta','ganancia neta','perdida neta']
     },
-    flujo:{
-      flujo_operativo:['flujo de efectivo de actividades operativas','flujo operativo','efectivo generado por actividades operativas'],cobros_clientes:['cobros a clientes','cobros por ventas','cobranzas de clientes'],pagos_proveedores:['pagos a proveedores','pago a proveedores','pagos por compras'],intereses_pagados:['intereses pagados','pagos de intereses'],flujo_inversion:['flujo de efectivo de actividades de inversion','flujo de inversion'],
-      capex:['capex','adquisicion de propiedad planta y equipo','compras de propiedad planta y equipo','adquisiciones de activos fijos'],flujo_financiamiento:['flujo de efectivo de actividades de financiacion','flujo de financiamiento'],prestamos_recibidos:['prestamos recibidos','obtencion de prestamos','nuevos prestamos'],prestamos_pagados:['prestamos pagados','amortizacion de prestamos','pago de prestamos'],aportes:['aportes de capital','aportes de socios','capital aportado'],dividendos:['dividendos pagados','retiros de socios'],flujo_neto:['aumento neto del efectivo','disminucion neta del efectivo','flujo neto de efectivo','variacion neta del efectivo'],efectivo_inicial:['efectivo al inicio','saldo inicial de efectivo','efectivo inicial'],efectivo_final:['efectivo al cierre','saldo final de efectivo','efectivo final']
-    }
+    flujo:{flujo_operativo:['flujo de efectivo de actividades operativas','flujo operativo','efectivo generado por actividades operativas'],cobros_clientes:['cobros a clientes','cobros por ventas','cobranzas de clientes'],pagos_proveedores:['pagos a proveedores','pago a proveedores','pagos por compras'],intereses_pagados:['intereses pagados','pagos de intereses'],flujo_inversion:['flujo de efectivo de actividades de inversion','flujo de inversion'],capex:['capex','adquisicion de propiedad planta y equipo','compras de propiedad planta y equipo','adquisiciones de activos fijos'],flujo_financiamiento:['flujo de efectivo de actividades de financiacion','flujo de financiamiento'],prestamos_recibidos:['prestamos recibidos','obtencion de prestamos','nuevos prestamos'],prestamos_pagados:['prestamos pagados','amortizacion de prestamos','pago de prestamos'],aportes:['aportes de capital','aportes de socios','capital aportado'],dividendos:['dividendos pagados','retiros de socios'],flujo_neto:['aumento neto del efectivo','disminucion neta del efectivo','flujo neto de efectivo','variacion neta del efectivo'],efectivo_inicial:['efectivo al inicio','saldo inicial de efectivo','efectivo inicial'],efectivo_final:['efectivo al cierre','saldo final de efectivo','efectivo final']}
   };
   const badSheet=/endeudamiento|periodo medio|rotacion|liquidez|score|ratio|margen|cobertura|indicadores|calificacion/;
   const rowText=row=>row.map(norm).filter(Boolean).join(' ');
+
   function headers(rows){
-    const found={};
-    // Los encabezados pueden estar bastante por encima de la primera cuenta.
-    // Se recorren todas las filas disponibles para no perder períodos en
-    // balances extensos o cuando el estado fue separado de una hoja combinada.
-    for(let r=0;r<rows.length;r++){
-      (rows[r]||[]).forEach((v,i)=>extractYears(v).forEach(y=>{if(found[y]==null)found[y]=i;}));
+    // Solo se aceptan como períodos las filas de encabezado financiero. Una fecha
+    // 2026/2027 dentro de una cuenta, nota o vencimiento no puede convertirse en
+    // un nuevo ejercicio del balance.
+    const candidates=[];
+    const limit=Math.min(rows.length,50);
+    for(let r=0;r<limit;r++){
+      const row=rows[r]||[], years=[];
+      row.forEach((v,i)=>extractYears(v).forEach(y=>years.push({y,i})));
+      const unique=[...new Set(years.map(x=>x.y))];
+      if(unique.length>=2)candidates.push({r,years,unique});
     }
+    if(!candidates.length)return{};
+    candidates.sort((a,b)=>b.unique.length-a.unique.length||a.r-b.r);
+    const chosen=candidates[0],found={};
+    chosen.years.forEach(({y,i})=>{if(found[y]==null)found[y]=i;});
     return found;
   }
+
   function match(labelText,type){const n=norm(labelText);if(!n)return null;let best=null;Object.entries(C[type]||{}).forEach(([key,aliases])=>aliases.forEach(alias=>{const a=norm(alias);if(n===a||n.startsWith(a+' ')||n.includes(' '+a)){const score=n===a?100:Math.min(99,Math.max(35,Math.round(a.length/n.length*100)));if(!best||score>best.score)best={key,alias,score};}}));return best;}
   function bestSheet(doc,type='balance'){let best=doc.sheets[0],bestScore=-Infinity;(doc.sheets||[]).forEach(sh=>{const name=norm(sh.name),all=sh.rows.slice(0,220).map(rowText).join(' ');let score=0;if(type==='balance'){if(/balance|situacion patrimonial|estado de situacion/.test(name))score+=80;if(/balance general|activo|pasivo|patrimonio/.test(all))score+=40;}if(type==='resultados'&&/resultado|perdida|ganancia/.test(name))score+=80;if(type==='flujo'&&/flujo|efectivo/.test(name))score+=80;if(/balance general|estado de resultados|ventas|inventario|proveedores/.test(all))score+=30;if(badSheet.test(name))score-=100;if(score>bestScore){bestScore=score;best=sh;}});return best;}
   function label(row,type){let best=null;row.forEach(v=>{const s=String(v==null?'':v).trim();if(!s||extractYears(v).length||/^[-+]?\(?[\d.,%\s]+\)?$/.test(s))return;const m=match(s,type);if(m&&(!best||m.score>best.m.score))best={s,m};});return best?best.s:'';}
