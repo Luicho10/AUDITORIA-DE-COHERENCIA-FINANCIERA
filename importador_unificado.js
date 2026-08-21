@@ -1,81 +1,74 @@
 /* IMPORTADOR UNIFICADO - AUDITORIA DE COHERENCIA FINANCIERA
    Una sola carga: Excel / CSV / PDF.
-   Detecta y separa Balance, Estado de Resultados y Flujo de Efectivo.
-   No depende exclusivamente del nombre de la hoja: analiza su contenido.
+   Lee primero la hoja real y recién después clasifica los estados.
 */
 (function(){
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-  function setStatus(text){const el=$('su');if(el)el.textContent=text;}
   const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
-  function rowText(row){return(row||[]).map(x=>norm(x)).filter(Boolean).join(' ');}
-  function sheet(name,rows,type){return{name,rows,_type:type};}
+  const rowText=row=>(row||[]).map(norm).filter(Boolean).join(' ');
+  const sheet=(name,rows,type)=>({name,rows,_type:type});
+  const setStatus=text=>{const el=$('su');if(el)el.textContent=text;};
 
-  function classify(text,name=''){
-    const s=norm(text),n=norm(name),score={balance:0,resultados:0,flujo:0};
-    if(/balance general|estado de situacion patrimonial|situacion patrimonial/.test(s)||/balance|situacion patrimonial/.test(n))score.balance+=20;
-    if(/estado de resultados|estado de resultado|ganancias y perdidas/.test(s)||/resultado|ganancias|perdidas/.test(n))score.resultados+=20;
-    if(/flujo de efectivo|flujo de caja|actividades operativas|actividades de inversion|actividades de financiacion/.test(s)||/flujo|cash flow/.test(n))score.flujo+=20;
-    const hit=(re,w,t)=>{const m=s.match(re);if(m)score[t]+=m.length*w;};
-    hit(/\b(ventas netas|ventas|ingresos por ventas)\b/g,5,'resultados');
-    hit(/\b(costo de ventas|costo de mercaderias|resultado bruto)\b/g,6,'resultados');
-    hit(/\b(ebitda|ebit|resultado operativo|intereses financieros|resultado neto)\b/g,5,'resultados');
-    hit(/\b(activo corriente|pasivo corriente|total activo|total pasivo|patrimonio neto)\b/g,6,'balance');
-    hit(/\b(inventarios|proveedores|creditos comerciales|capital social)\b/g,4,'balance');
-    hit(/\b(cobros a clientes|pagos a proveedores|actividades operativas|actividades de inversion|actividades de financiacion)\b/g,7,'flujo');
-    hit(/\b(capex|prestamos recibidos|prestamos pagados|flujo neto de efectivo|efectivo final)\b/g,6,'flujo');
-    const ordered=Object.entries(score).sort((a,b)=>b[1]-a[1]);
-    return ordered[0][1]>0&&ordered[0][1]>=ordered[1][1]*1.15?ordered[0][0]:null;
-  }
+  // Estas hojas pertencen ao modelo de análise, no a los EE.FF. del cliente.
+  const analytical=/resumen financiero|ddjj|tabla clima|modelo logit|z-score|z score|calculo agro|sim\. linea|score|ratio|liquidez|endeudamiento|periodo medio|rotacion|indicadores financieros|calificacion/;
 
-  // Detecta filas de encabezado que contienen varios períodos. Es importante
-  // conservarlas cuando una hoja combinada se separa, porque el encabezado
-  // suele estar antes de "BALANCE GENERAL" o "ESTADO DE RESULTADOS".
   function periodTokens(row){
-    const found=new Set();
+    const found=[];
     (row||[]).forEach(v=>{
-      if(v instanceof Date&&!isNaN(v)){
-        const y=v.getFullYear();if(y>=1900&&y<=2100)found.add(String(y));return;
-      }
+      if(v instanceof Date&&!isNaN(v)){const y=v.getFullYear();if(y>=1900&&y<=2100)found.push(String(y));return;}
       if(typeof v==='number'&&Number.isFinite(v)){
-        if(Number.isInteger(v)&&v>=1900&&v<=2100)found.add(String(v));
-        else if(v>=30000&&v<=60000){const d=new Date(Date.UTC(1899,11,30)+v*86400000),y=d.getUTCFullYear();if(y>=1900&&y<=2100)found.add(String(y));}
+        if(Number.isInteger(v)&&v>=1900&&v<=2100)found.push(String(v));
+        else if(v>=30000&&v<=60000){const d=new Date(Date.UTC(1899,11,30)+v*86400000),y=d.getUTCFullYear();if(y>=1900&&y<=2100)found.push(String(y));}
         return;
       }
-      const s=String(v??'');const m=s.match(/(?:19|20)\d{2}/g)||[];m.forEach(y=>found.add(y));
+      const m=String(v??'').match(/(?:19|20)\d{2}/g)||[];m.forEach(y=>found.push(y));
     });
-    return [...found];
+    return [...new Set(found)];
   }
 
-  function headerPreamble(rows,firstStart){
-    if(firstStart<=0)return[];
-    const out=[];
-    for(let i=0;i<firstStart;i++){
-      const tokens=periodTokens(rows[i]);
-      if(tokens.length>=2){
-        if(i>0)out.push(rows[i-1]);
-        out.push(rows[i]);
-        if(i+1<firstStart)out.push(rows[i+1]);
-      }
-    }
-    const seen=new Set();
-    return out.filter(r=>{const k=JSON.stringify(r);if(seen.has(k))return false;seen.add(k);return true;});
+  function findSections(rows){
+    const starts=[];
+    rows.forEach((r,i)=>{
+      const t=rowText(r);
+      if(/^(?:\d+[.)]?\s*)?balance general$/.test(t)||/^(?:\d+[.)]?\s*)estado de situacion patrimonial$/.test(t))starts.push({i,type:'balance'});
+      else if(/^(?:\d+[.)]?\s*)?estado de resultados$/.test(t)||/^(?:\d+[.)]?\s*)?estado de resultado$/.test(t)||/^(?:\d+[.)]?\s*)?ganancias y perdidas$/.test(t))starts.push({i,type:'resultados'});
+      else if(/^(?:\d+[.)]?\s*)?estado de flujo de efectivo$/.test(t)||/^(?:\d+[.)]?\s*)?flujo de efectivo$/.test(t)||/^(?:\d+[.)]?\s*)?estado de flujo de caja$/.test(t))starts.push({i,type:'flujo'});
+    });
+    return starts;
+  }
+
+  function preserveHeader(rows,first){
+    const candidates=[];
+    for(let i=0;i<Math.min(first,30);i++){if(periodTokens(rows[i]).length>=2)candidates.push(i);}
+    if(!candidates.length)return[];
+    const r=candidates[0],out=[];
+    for(let i=Math.max(0,r-1);i<=Math.min(first-1,r+1);i++)out.push(rows[i]);
+    return out;
   }
 
   function splitCombinedSheet(sh){
-    const rows=sh.rows||[],starts=[];
-    rows.forEach((r,i)=>{
-      const t=rowText(r);
-      if(/^(?:\d+[.)]?\s*)?(balance general|estado de situacion patrimonial|situacion patrimonial)\s*$/.test(t))starts.push({i,type:'balance'});
-      else if(/^(?:\d+[.)]?\s*)?(estado de resultados|estado de resultado|ganancias y perdidas|estado de perdidas y ganancias)\s*$/.test(t))starts.push({i,type:'resultados'});
-      else if(/^(?:\d+[.)]?\s*)?(estado de flujo de efectivo|flujo de efectivo|estado de flujo de caja|flujo de caja)\s*$/.test(t))starts.push({i,type:'flujo'});
-    });
+    const rows=sh.rows||[],starts=findSections(rows);
     if(starts.length<2)return[sh];
-    const preamble=headerPreamble(rows,starts[0].i);
+    const header=preserveHeader(rows,starts[0].i);
     return starts.map((s,k)=>{
       const end=k+1<starts.length?starts[k+1].i:rows.length;
-      return sheet(sh.name+' · '+s.type.toUpperCase(),[...preamble,...rows.slice(s.i,end)],s.type);
+      return sheet(sh.name+' · '+s.type.toUpperCase(),[...header,...rows.slice(s.i,end)],s.type);
     });
+  }
+
+  function classify(text,name=''){
+    const s=norm(text),n=norm(name);
+    if(analytical.test(n))return null;
+    if(/balance general|estado de situacion patrimonial|situacion patrimonial/.test(s))return'balance';
+    if(/estado de resultados|estado de resultado|ganancias y perdidas/.test(s))return'resultados';
+    if(/estado de flujo de efectivo|flujo de efectivo|flujo de caja|actividades operativas|actividades de inversion|actividades de financiacion/.test(s))return'flujo';
+    // Para hojas separadas exigimos nombre financiero explícito; no clasificamos
+    // una hoja por contener solamente "ventas", "EBITDA" o ratios.
+    if(/balance|situacion patrimonial/.test(n))return'balance';
+    if(/estado de resultados|resultados contable|resultado/.test(n)&&!analytical.test(n))return'resultados';
+    if(/flujo|cash flow/.test(n))return'flujo';
+    return null;
   }
 
   async function readExcel(file){
@@ -95,44 +88,30 @@
       const page=await pdf.getPage(p),content=await page.getTextContent(),items=(content.items||[]).filter(x=>String(x.str||'').trim()),byY={};
       items.forEach(it=>{const y=Math.round(it.transform?.[5]??0);(byY[y]||(byY[y]=[])).push({x:it.transform?.[4]??0,str:String(it.str||'').trim()});});
       const ys=Object.keys(byY).map(Number).sort((a,b)=>b-a),rows=ys.map(y=>byY[y].sort((a,b)=>a.x-b.x).map(x=>x.str)).filter(r=>r.length),base=sheet('Página '+p,rows,null);
-      splitCombinedSheet(base).forEach(x=>{if(!x._type)x._type=classify(rowText(x.rows),x.name);sheets.push(x);});
+      splitCombinedSheet(base).forEach(x=>{if(!x._type)x._type=classify(rowText(x.rows),x.name);if(x._type)sheets.push(x);});
     }
     return{name:file.name,sheets};
   }
 
-  async function readSingle(file){
-    const n=file.name.toLowerCase();
-    if(n.endsWith('.pdf'))return readPdf(file);
-    if(n.endsWith('.csv'))return{name:file.name,sheets:splitCombinedSheet(sheet('CSV',csvRows(await file.text()),null))};
-    return readExcel(file);
-  }
+  async function readSingle(file){const n=file.name.toLowerCase();if(n.endsWith('.pdf'))return readPdf(file);if(n.endsWith('.csv'))return{name:file.name,sheets:splitCombinedSheet(sheet('CSV',csvRows(await file.text()),null))};return readExcel(file);}
 
   function classifySheets(doc){
     const groups={balance:[],resultados:[],flujo:[]};
-    (doc.sheets||[]).forEach(sh=>{
-      const type=sh._type||classify(rowText(sh.rows),sh.name);
-      if(type)groups[type].push({...sh,_type:type});
-    });
+    (doc.sheets||[]).forEach(sh=>{const type=sh._type||classify(rowText(sh.rows),sh.name);if(type)groups[type].push({...sh,_type:type});});
     return groups;
   }
 
   function mergeSheets(doc,sheets,type){
     if(!sheets.length)return null;
     if(sheets.length===1)return{name:doc.name,sheets:[sheets[0]]};
-    const rows=[];
-    sheets.forEach((sh,i)=>{if(i)rows.push([`SECCION ${type.toUpperCase()} - ${sh.name}`]);rows.push(...sh.rows);});
-    return{name:doc.name,sheets:[{name:type.toUpperCase()+' CONSOLIDADO',rows}]};
+    const rows=[];sheets.forEach((sh,i)=>{if(i)rows.push([`SECCION ${type.toUpperCase()} - ${sh.name}`]);rows.push(...sh.rows);});
+    return{name:doc.name,sheets:[{name:type.toUpperCase()+' CONSOLIDADO',rows,_type:type}]};
   }
 
   function normalizeAll(doc){
     const groups=classifySheets(doc),out={balance:null,resultados:null,flujo:null};
-    ['balance','resultados','flujo'].forEach(type=>{
-      const merged=mergeSheets(doc,groups[type],type);if(!merged)return;
-      try{out[type]=AuditoriaNormalizador.normalize(merged,type);}catch(e){console.error('Normalización '+type,e);}
-    });
-    if(!out.balance||!out.resultados){
-      try{const c=AuditoriaNormalizador.normalizeCombined(doc);if(!out.balance)out.balance=c.balance;if(!out.resultados)out.resultados=c.resultados;}catch(e){console.error('Normalización combinada',e);}
-    }
+    ['balance','resultados','flujo'].forEach(type=>{const merged=mergeSheets(doc,groups[type],type);if(!merged)return;try{out[type]=AuditoriaNormalizador.normalize(merged,type);}catch(e){console.error('Normalización '+type,e);}});
+    if(!out.balance||!out.resultados){try{const c=AuditoriaNormalizador.normalizeCombined(doc);if(!out.balance)out.balance=c.balance;if(!out.resultados)out.resultados=c.resultados;}catch(e){console.error('Normalización combinada',e);}}
     return out;
   }
 
@@ -141,23 +120,19 @@
   function renderControl(normalized){
     const names={balance:'BALANCE GENERAL',resultados:'ESTADO DE RESULTADOS',flujo:'FLUJO DE EFECTIVO'};
     const blocks=Object.entries(normalized).filter(([,n])=>n).map(([type,n])=>`<div class="alert ok"><strong>${names[type]}</strong><div>Hoja / sección: <b>${esc(n.sheet||'Detectada')}</b> · Períodos: <b>${esc((n.periods||[]).join(', ')||'No identificados')}</b> · Cuentas reconocidas: <b>${Object.keys(n.matched||{}).length}</b></div></div>`).join('');
-    $('controlBody').innerHTML=`<div class="audit-current"><b>ARCHIVO ÚNICO PROCESADO</b><br>El sistema recibió un solo archivo y clasificó cada hoja/sección por su contenido. Los estados detectados se separan internamente antes de ejecutar las pruebas cruzadas.</div>${blocks||'<div class="alert crit"><strong>NO SE PUDO IDENTIFICAR UN ESTADO FINANCIERO</strong><div>Revise el contenido del archivo.</div></div>'}`;
+    $('controlBody').innerHTML=`<div class="audit-current"><b>ARCHIVO ÚNICO PROCESADO</b><br>El sistema recibió un solo archivo y clasificó únicamente las hojas de estados financieros. Las hojas auxiliares de ratios, score, clima, logit y simulación quedan fuera de la lectura contable.</div>${blocks||'<div class="alert crit"><strong>NO SE PUDO IDENTIFICAR UN ESTADO FINANCIERO</strong><div>Revise el contenido del archivo.</div></div>'}`;
     $('control').classList.remove('hidden');
   }
 
   async function processUnified(){
     try{
-      const file=$('archivoUnico')?.files?.[0];
-      if(!file){setStatus('Seleccione un Excel, CSV o PDF.');return;}
-      setStatus('Leyendo y separando automáticamente los estados...');
+      const file=$('archivoUnico')?.files?.[0];if(!file){setStatus('Seleccione un Excel, CSV o PDF.');return;}
+      setStatus('Leyendo estados financieros reales del archivo...');
       const doc=await readSingle(file),normalized=normalizeAll(doc),periods=allPeriods(normalized);
-      window.__NORMALIZED_UNIFICADO=normalized;
-      window.NORMALIZED=normalized;
-      window.DATA={balance:doc,resultados:doc,flujo:doc};
-      $('periodos').value=periods.join(', ');$('ejercicio').value=periods.at(-1)||'';
-      renderControl(normalized);
+      window.__NORMALIZED_UNIFICADO=normalized;window.NORMALIZED=normalized;window.DATA={balance:doc,resultados:doc,flujo:doc};
+      $('periodos').value=periods.join(', ');$('ejercicio').value=periods.at(-1)||'';renderControl(normalized);
       if(window.__AUDITORIA_UI_RUN)window.__AUDITORIA_UI_RUN();
-      setStatus(`Archivo procesado: ${file.name}. Estados separados automáticamente.`);
+      setStatus(`Archivo procesado: ${file.name}. Estados financieros separados correctamente.`);
     }catch(e){console.error(e);$('controlBody').innerHTML=`<div class="alert crit"><strong>ERROR DE LECTURA</strong><div>${esc(e.message)}</div></div>`;$('control').classList.remove('hidden');setStatus('No fue posible procesar el archivo.');}
   }
 
