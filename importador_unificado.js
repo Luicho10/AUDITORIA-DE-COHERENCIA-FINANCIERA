@@ -12,12 +12,10 @@
   function sheet(name,rows,type){return{name,rows,_type:type};}
 
   function classify(text,name=''){
-    const s=norm(text), n=norm(name), score={balance:0,resultados:0,flujo:0};
+    const s=norm(text),n=norm(name),score={balance:0,resultados:0,flujo:0};
     if(/balance general|estado de situacion patrimonial|situacion patrimonial/.test(s)||/balance|situacion patrimonial/.test(n))score.balance+=20;
     if(/estado de resultados|estado de resultado|ganancias y perdidas/.test(s)||/resultado|ganancias|perdidas/.test(n))score.resultados+=20;
     if(/flujo de efectivo|flujo de caja|actividades operativas|actividades de inversion|actividades de financiacion/.test(s)||/flujo|cash flow/.test(n))score.flujo+=20;
-    // Indicadores distintivos del contenido. Esto permite detectar hojas con nombres
-    // genéricos como "EF Y ERR", "Hoja1" o "Datos".
     const hit=(re,w,t)=>{const m=s.match(re);if(m)score[t]+=m.length*w;};
     hit(/\b(ventas netas|ventas|ingresos por ventas)\b/g,5,'resultados');
     hit(/\b(costo de ventas|costo de mercaderias|resultado bruto)\b/g,6,'resultados');
@@ -30,6 +28,40 @@
     return ordered[0][1]>0&&ordered[0][1]>=ordered[1][1]*1.15?ordered[0][0]:null;
   }
 
+  // Detecta filas de encabezado que contienen varios períodos. Es importante
+  // conservarlas cuando una hoja combinada se separa, porque el encabezado
+  // suele estar antes de "BALANCE GENERAL" o "ESTADO DE RESULTADOS".
+  function periodTokens(row){
+    const found=new Set();
+    (row||[]).forEach(v=>{
+      if(v instanceof Date&&!isNaN(v)){
+        const y=v.getFullYear();if(y>=1900&&y<=2100)found.add(String(y));return;
+      }
+      if(typeof v==='number'&&Number.isFinite(v)){
+        if(Number.isInteger(v)&&v>=1900&&v<=2100)found.add(String(v));
+        else if(v>=30000&&v<=60000){const d=new Date(Date.UTC(1899,11,30)+v*86400000),y=d.getUTCFullYear();if(y>=1900&&y<=2100)found.add(String(y));}
+        return;
+      }
+      const s=String(v??'');const m=s.match(/(?:19|20)\d{2}/g)||[];m.forEach(y=>found.add(y));
+    });
+    return [...found];
+  }
+
+  function headerPreamble(rows,firstStart){
+    if(firstStart<=0)return[];
+    const out=[];
+    for(let i=0;i<firstStart;i++){
+      const tokens=periodTokens(rows[i]);
+      if(tokens.length>=2){
+        if(i>0)out.push(rows[i-1]);
+        out.push(rows[i]);
+        if(i+1<firstStart)out.push(rows[i+1]);
+      }
+    }
+    const seen=new Set();
+    return out.filter(r=>{const k=JSON.stringify(r);if(seen.has(k))return false;seen.add(k);return true;});
+  }
+
   function splitCombinedSheet(sh){
     const rows=sh.rows||[],starts=[];
     rows.forEach((r,i)=>{
@@ -39,7 +71,11 @@
       else if(/^(?:\d+[.)]?\s*)?(estado de flujo de efectivo|flujo de efectivo|estado de flujo de caja|flujo de caja)\s*$/.test(t))starts.push({i,type:'flujo'});
     });
     if(starts.length<2)return[sh];
-    return starts.map((s,k)=>{const end=k+1<starts.length?starts[k+1].i:rows.length;return sheet(sh.name+' · '+s.type.toUpperCase(),rows.slice(s.i,end),s.type);});
+    const preamble=headerPreamble(rows,starts[0].i);
+    return starts.map((s,k)=>{
+      const end=k+1<starts.length?starts[k+1].i:rows.length;
+      return sheet(sh.name+' · '+s.type.toUpperCase(),[...preamble,...rows.slice(s.i,end)],s.type);
+    });
   }
 
   async function readExcel(file){
@@ -94,7 +130,6 @@
       const merged=mergeSheets(doc,groups[type],type);if(!merged)return;
       try{out[type]=AuditoriaNormalizador.normalize(merged,type);}catch(e){console.error('Normalización '+type,e);}
     });
-    // Último respaldo para documentos realmente combinados en una única sección.
     if(!out.balance||!out.resultados){
       try{const c=AuditoriaNormalizador.normalizeCombined(doc);if(!out.balance)out.balance=c.balance;if(!out.resultados)out.resultados=c.resultados;}catch(e){console.error('Normalización combinada',e);}
     }
