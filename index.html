@@ -8,7 +8,7 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V1 · ETAPA 2</b></header>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones y tendencias</small></div><b>V1 · ETAPA 3</b></header>
 <main class="wrap">
 <section id="login" class="card login-card"><h2>ACCESO AL SISTEMA</h2><div class="body login-body"><label>Usuario</label><input id="usuario" autocomplete="username" placeholder="Usuario"><label>Contraseña</label><input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña"><button class="btn primary" id="ingresar">INGRESAR</button><div id="loginMsg" class="login-msg"></div></div></section>
 <div id="app" class="hidden">
@@ -17,6 +17,7 @@
 <section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA Y NORMALIZACIÓN</h2><div class="body" id="controlBody"></div></section><section id="auditoria" class="hidden"></section>
 </div></main>
 <script>document.getElementById('ingresar').addEventListener('click',function(){const u=document.getElementById('usuario').value.trim(),p=document.getElementById('clave').value,msg=document.getElementById('loginMsg');if(!u||!p){msg.textContent='Ingrese usuario y contraseña.';return}document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')});</script>
-<script src="etapa1.js?v=20260821-2"></script>
-<script src="etapa2_flujo.js?v=20260821-2"></script>
+<script src="etapa1.js?v=20260821-3"></script>
+<script src="etapa2_flujo.js?v=20260821-3"></script>
+<script src="etapa3_pruebas_contables.js?v=20260821-3"></script>
 </body></html>
