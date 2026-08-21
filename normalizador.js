@@ -2,9 +2,20 @@ window.AuditoriaNormalizador = (() => {
   const norm = s => String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
   const extractYears = v => {
     if (v instanceof Date) { const y=v.getFullYear(); return Number.isFinite(y)&&y>=1900&&y<=2100?[String(y)]:[]; }
-    if (typeof v === 'number') { const n=Number(v); return Number.isInteger(n)&&n>=1900&&n<=2100?[String(n)]:[]; }
+    if (typeof v === 'number') {
+      const n=Number(v);
+      if(Number.isInteger(n)&&n>=1900&&n<=2100)return[String(n)];
+      // Excel puede entregar una fecha como número serial cuando la celda no
+      // conserva correctamente el formato de fecha. Convertimos esos seriales.
+      if(Number.isFinite(n)&&n>=30000&&n<=60000){
+        const d=new Date(Date.UTC(1899,11,30)+n*86400000),y=d.getUTCFullYear();
+        return Number.isFinite(y)&&y>=1900&&y<=2100?[String(y)]:[];
+      }
+      return [];
+    }
     const s=String(v==null?'':v).trim(); if(!s)return [];
-    if(/^(19|20)\d{2}$/.test(s))return[s]; const m=s.match(/(?:^|[^0-9])((?:19|20)\d{2})(?:[^0-9]|$)/); return m?[m[1]]:[];
+    if(/^(19|20)\d{2}$/.test(s))return[s];
+    const m=s.match(/(?:^|[^0-9])((?:19|20)\d{2})(?:[^0-9]|$)/); return m?[m[1]]:[];
   };
   const number=v=>{
     if(v instanceof Date)return null;if(typeof v==='number')return Number.isFinite(v)?v:null;
@@ -42,7 +53,16 @@ window.AuditoriaNormalizador = (() => {
   };
   const badSheet=/endeudamiento|periodo medio|rotacion|liquidez|score|ratio|margen|cobertura|indicadores|calificacion/;
   const rowText=row=>row.map(norm).filter(Boolean).join(' ');
-  function headers(rows){const found={};for(let r=0;r<Math.min(rows.length,30);r++){(rows[r]||[]).forEach((v,i)=>extractYears(v).forEach(y=>{if(found[y]==null)found[y]=i;}));}return found;}
+  function headers(rows){
+    const found={};
+    // Los encabezados pueden estar bastante por encima de la primera cuenta.
+    // Se recorren todas las filas disponibles para no perder períodos en
+    // balances extensos o cuando el estado fue separado de una hoja combinada.
+    for(let r=0;r<rows.length;r++){
+      (rows[r]||[]).forEach((v,i)=>extractYears(v).forEach(y=>{if(found[y]==null)found[y]=i;}));
+    }
+    return found;
+  }
   function match(labelText,type){const n=norm(labelText);if(!n)return null;let best=null;Object.entries(C[type]||{}).forEach(([key,aliases])=>aliases.forEach(alias=>{const a=norm(alias);if(n===a||n.startsWith(a+' ')||n.includes(' '+a)){const score=n===a?100:Math.min(99,Math.max(35,Math.round(a.length/n.length*100)));if(!best||score>best.score)best={key,alias,score};}}));return best;}
   function bestSheet(doc,type='balance'){let best=doc.sheets[0],bestScore=-Infinity;(doc.sheets||[]).forEach(sh=>{const name=norm(sh.name),all=sh.rows.slice(0,220).map(rowText).join(' ');let score=0;if(type==='balance'){if(/balance|situacion patrimonial|estado de situacion/.test(name))score+=80;if(/balance general|activo|pasivo|patrimonio/.test(all))score+=40;}if(type==='resultados'&&/resultado|perdida|ganancia/.test(name))score+=80;if(type==='flujo'&&/flujo|efectivo/.test(name))score+=80;if(/balance general|estado de resultados|ventas|inventario|proveedores/.test(all))score+=30;if(badSheet.test(name))score-=100;if(score>bestScore){bestScore=score;best=sh;}});return best;}
   function label(row,type){let best=null;row.forEach(v=>{const s=String(v==null?'':v).trim();if(!s||extractYears(v).length||/^[-+]?\(?[\d.,%\s]+\)?$/.test(s))return;const m=match(s,type);if(m&&(!best||m.score>best.m.score))best={s,m};});return best?best.s:'';}
