@@ -44,3 +44,11 @@
   function init(){const b=$('leer');if(!b)return;b.addEventListener('click',()=>setTimeout(run,100));}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
+
+/* Carga de Etapa 3 sin alterar la Etapa 2. */
+(function(){
+  const s=document.createElement('script');
+  s.src='etapa3_pruebas_contables.js?v=20260821-1';
+  s.async=false;
+  document.body.appendChild(s);
+})();
