@@ -3,11 +3,16 @@
 */
 (function(){
   const $=id=>document.getElementById(id);
-  function ejecutar(){
+  async function ejecutar(){
     const auditoria=$('auditoria');
     if(!auditoria||typeof window.ejecutarPruebasCruzadas!=='function')return;
-    window.ejecutarPruebasCruzadas();
-    setTimeout(()=>auditoria.classList.remove('hidden'),80);
+    try{
+      await window.ejecutarPruebasCruzadas();
+      auditoria.classList.remove('hidden');
+    }catch(e){
+      console.error('Error al ejecutar Etapa 6:',e);
+      auditoria.classList.remove('hidden');
+    }
   }
   function init(){
     const boton=$('leer');
