@@ -8,12 +8,12 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Detección de inconsistencias, correlaciones, tendencias y explicación de alertas</small></div><b>V1 · ETAPA 6</b></header>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Controles financieros para análisis crediticio</small></div><b>V2 · MOTOR FINANCIERO</b></header>
 <main class="wrap">
 <section id="login" class="card login-card"><h2>ACCESO AL SISTEMA</h2><div class="body login-body"><label>Usuario</label><input id="usuario" autocomplete="username" placeholder="Usuario"><label>Contraseña</label><input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña"><button class="btn primary" id="ingresar">INGRESAR</button><div id="loginMsg" class="login-msg"></div></div></section>
 <div id="app" class="hidden">
 <section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid"><div><label>Cliente / Razón Social</label><input id="cliente"></div><div><label>RUC / CI</label><input id="ruc"></div><div><label>Ejercicio final</label><input id="ejercicio" readonly></div><div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div></div></section>
-<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>ARCHIVO ÚNICO</b><input id="archivoUnico" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="archivoNombre">Sin archivo</span></div></div><p class="muted"><b>Una sola carga.</b> El sistema lee el archivo completo y separa internamente Balance General, Estado de Resultados y Flujo de Fondos antes de ejecutar la auditoría.</p><div class="actions"><button class="btn primary" id="leer">LEER Y CONTROLAR ARCHIVO</button><button class="btn secondary" id="limpiar">LIMPIAR</button></div></div></section>
+<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>ARCHIVO ÚNICO</b><input id="archivoUnico" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="archivoNombre">Sin archivo</span></div></div><p class="muted"><b>Una sola carga.</b> El sistema utiliza los estados comparativos y el flujo de fondos para ejecutar controles financieros orientados al análisis crediticio.</p><div class="actions"><button class="btn primary" id="leer">LEER Y CONTROLAR ARCHIVO</button><button class="btn secondary" id="limpiar">LIMPIAR</button></div></div></section>
 <section id="control" class="card hidden"><h2>3. CONTROL DE LECTURA Y NORMALIZACIÓN</h2><div class="body" id="controlBody"></div></section><section id="auditoria" class="hidden"></section>
 </div></main>
 <script>document.getElementById('ingresar').addEventListener('click',function(){const u=document.getElementById('usuario').value.trim(),p=document.getElementById('clave').value,msg=document.getElementById('loginMsg');if(!u||!p){msg.textContent='Ingrese usuario y contraseña.';return}document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')});</script>
@@ -27,4 +27,5 @@
 <script src="interpretacion_cruzadas.js?v=20260826-1"></script>
 <script src="hallazgos_crediticios.js?v=20260826-1"></script>
 <script src="diagnostico_ejecutivo.js?v=20260826-1"></script>
+<script src="motor_controles_financieros.js?v=20260826-1"></script>
 </body></html>
