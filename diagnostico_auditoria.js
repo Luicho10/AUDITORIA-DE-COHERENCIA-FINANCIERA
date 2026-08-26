@@ -1,128 +1,91 @@
-/* CAPA DE DIAGNÓSTICO - no reemplaza las pruebas; interpreta sus resultados.
-   Objetivo: decir QUÉ revisar, POR QUÉ, DÓNDE buscar y dar una lectura general.
+/* DIAGNÓSTICO E INTERPRETACIÓN
+   Objetivo: transformar las pruebas en una conclusión comprensible para un usuario no auditor.
+   Regla: el último período disponible genera las alertas; los períodos anteriores sirven únicamente como contexto/tendencia.
 */
 (function(){
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
-  const rules={
-    'clientes ↔ ventas':{
-      title:'Clientes / Ventas: revisar plazo de cobranza',
-      why:'El saldo de clientes representa una proporción elevada de las ventas o aumentó frente al período anterior. Esto puede significar mayor plazo de venta, acumulación de saldos, crecimiento genuino del negocio o cobranzas atrasadas.',
-      check:'Balance: Créditos comerciales / Clientes. Estado de Resultados: Ventas netas. También comparar con cobranzas posteriores al cierre.',
-      evidence:'Antigüedad de saldos, listado de clientes, condiciones de crédito, cobranzas de enero-marzo siguiente y notas de crédito.'
-    },
-    'inventario ↔ costo de ventas':{
-      title:'Inventario / Costo: revisar rotación y existencia',
-      why:'La relación permite detectar inventario elevado o una variación fuerte respecto del período anterior. Una rotación baja puede indicar stock inmovilizado; una muy alta puede ser normal o requerir revisar si el saldo de cierre está completo.',
-      check:'Balance: Inventarios. Estado de Resultados: Costo de ventas. Comparar además con compras y movimiento físico.',
-      evidence:'Inventario físico, antigüedad/obsolescencia, compras, bajas, ajustes y criterio de valuación.'
-    },
-    'proveedores ↔ compras reconstruidas':{
-      title:'Proveedores / Compras: explicar el movimiento de cuentas por pagar',
-      why:'Las compras reconstruidas no tienen que coincidir con la variación de proveedores. La diferencia puede provenir de pagos, compras al contado, anticipos, cambios de plazo o acreedores no incluidos. Lo importante es explicar el puente.',
-      check:'Balance: Proveedores, anticipos y acreedores. Estado de Resultados: Costo de ventas. Si existe, revisar el detalle de compras y pagos.',
-      evidence:'Mayor de proveedores, listado de facturas, pagos, compras al contado, anticipos y movimientos de acreedores varios.'
-    },
-    'deuda ↔ intereses':{
-      title:'Deuda / Intereses: verificar costo financiero real',
-      why:'La tasa implícita es una señal, no una tasa contractual. Si hay intereses con poca deuda al cierre, puede existir deuda cancelada durante el año, intereses devengados de períodos anteriores u otra fuente de financiamiento.',
-      check:'Balance: Deudas financieras CP y LP. Estado de Resultados: Intereses financieros pagados. Revisar también movimientos de deuda durante el ejercicio.',
-      evidence:'Contratos, cronogramas, extractos bancarios, desembolsos, cancelaciones, tasas, intereses devengados y préstamos con socios.'
-    },
-    'caja ↔ flujo de fondos':{
-      title:'Caja / Flujo: comprobar el puente de efectivo',
-      why:'La caja final menos la caja inicial debe explicar la variación neta de caja del flujo. Si no coincide, hay que determinar si el problema está en saldos bancarios, efectivo omitido o en la confección del flujo.',
-      check:'Balance: Caja y Bancos de ambos cierres. Flujo: Variación neta de caja. Revisar conciliaciones bancarias.',
-      evidence:'Extractos bancarios, conciliaciones, saldos iniciales/finales y composición de ingresos y egresos de efectivo.'
-    },
-    'ppe ↔ capex ↔ financiamiento':{
-      title:'Activo fijo / CAPEX: explicar las altas y bajas',
-      why:'El aumento del activo fijo no necesariamente equivale al CAPEX del flujo: pueden intervenir depreciaciones, ventas, bajas, reclasificaciones o adquisiciones financiadas directamente.',
-      check:'Balance: Activo fijo bruto y depreciación acumulada. Flujo: inversiones/compras de activo fijo y ventas de activo fijo.',
-      evidence:'Registro de activo fijo, facturas de compras, ventas/bajas, depreciaciones y contratos de financiación de activos.'
-    },
-    'inversión ↔ fuentes de financiamiento':{
-      title:'Inversión / Financiamiento: determinar el destino del dinero',
-      why:'Una nueva deuda identifica una posible fuente de fondos, pero no demuestra por sí sola dónde se utilizó. Si el endeudamiento cambia mucho, debe buscarse el destino económico.',
-      check:'Balance: deuda financiera CP/LP. Flujo: nuevas deudas y aplicaciones de inversión. Cruzar con activo fijo, inversiones y caja.',
-      evidence:'Contratos de préstamos, desembolsos, extractos, facturas de inversiones y conciliación del destino de los fondos.'
-    },
-    'ecuación patrimonial':{
-      title:'Ecuación patrimonial: localizar la diferencia',
-      why:'Activo debe ser igual a Pasivo + Patrimonio. Una diferencia real indica que alguna cuenta, total o signo está mal informado o falta una partida.',
-      check:'Balance: Total Activo, Total Pasivo y Patrimonio Neto; luego revisar subtotales que forman esos tres totales.',
-      evidence:'Balance original, sumatoria de cuentas y asiento/saldo que explique la diferencia.'
-    },
-    'composición del patrimonio':{
-      title:'Patrimonio: verificar sus componentes',
-      why:'Capital + reservas + resultados debe explicar el Patrimonio Neto. Si no coincide, revisar reclasificaciones, resultados acumulados, capitalizaciones y reservas.',
-      check:'Balance: Capital, reservas, resultados acumulados, resultado del ejercicio y Patrimonio Neto.',
-      evidence:'Estado de evolución del patrimonio, actas de capitalización, distribución de resultados y movimientos de reservas.'
-    },
-    'resultado del ejercicio':{
-      title:'Resultado neto: verificar impuesto y resultado',
-      why:'Resultado antes de impuesto menos impuesto a la renta debe llegar al resultado neto. Si no coincide, existe una diferencia que debe localizarse.',
-      check:'Estado de Resultados: Resultado antes de impuesto, Impuesto a la renta y Resultado neto.',
-      evidence:'Declaración/liquidación del impuesto, conciliación fiscal y Estado de Resultados.'
-    },
-    'resultado bruto':{
-      title:'Resultado bruto: verificar ventas y costo',
-      why:'Ventas netas menos costo de ventas debe explicar el resultado bruto. Una diferencia apunta a clasificación, importe o signo.',
-      check:'Estado de Resultados: Ventas netas, Costo de ventas y Resultado bruto.',
-      evidence:'Libro de ventas, compras/costo, inventarios y conciliación del costo de ventas.'
-    },
-    'ebitda':{
-      title:'EBITDA: verificar gastos operativos incluidos',
-      why:'La prueba busca explicar el EBITDA desde el resultado bruto y los gastos operativos. Revisar especialmente qué gastos fueron considerados operativos.',
-      check:'Estado de Resultados: Resultado bruto, gastos operativos y EBITDA.',
-      evidence:'Detalle de gastos, criterios de clasificación y conciliación con el resultado operativo.'
-    },
-    'ebit':{
-      title:'EBIT: verificar depreciaciones',
-      why:'EBITDA menos depreciaciones/amortizaciones debe explicar el EBIT. Si no coincide, revisar depreciaciones o clasificación de gastos.',
-      check:'Estado de Resultados: EBITDA, depreciaciones/amortizaciones y EBIT.',
-      evidence:'Registro de activo fijo, vida útil, depreciaciones y movimientos de activos.'
-    },
-    'resultado antes de impuesto':{
-      title:'Resultado antes de impuesto: explicar resultado financiero y no operativo',
-      why:'El EBIT debe llegar al resultado antes de impuesto después de intereses, diferencias de cambio y otros resultados. La diferencia puede estar en una cuenta omitida o mal clasificada.',
-      check:'Estado de Resultados: EBIT, intereses, diferencia de cambio, otros ingresos/egresos y resultado antes de impuesto.',
-      evidence:'Detalle de resultados financieros/no operativos y comprobantes de intereses y diferencia de cambio.'
-    }
+  const human={
+    'CONCILIADO':{name:'BIEN',cls:'g-good',text:'La relación matemática evaluada cuadra en el período actual.'},
+    'CORRELACIÓN':{name:'NORMAL',cls:'g-good',text:'Existe una relación económica útil, pero por sí sola no demuestra un error.'},
+    'PARA INDAGAR':{name:'REGULAR',cls:'g-warn',text:'Existe una señal en el período actual que necesita explicación documental o gerencial. No significa automáticamente que exista un error.'},
+    'OBSERVACIÓN':{name:'OBSERVACIÓN',cls:'g-warn',text:'Existe una diferencia de presentación, metodología o evolución que debe interpretarse antes de sacar una conclusión.'},
+    'INCONSISTENCIA':{name:'MALO',cls:'g-bad',text:'La relación matemática evaluada no cuadra y la diferencia no queda explicada con la información disponible.'},
+    'SIN DATOS':{name:'SIN DATOS',cls:'g-warn',text:'No hay información suficiente para realizar esta prueba. No se debe interpretar un período sin datos como una inconsistencia.'}
   };
-  function getRule(label){const n=norm(label);return Object.entries(rules).find(([k])=>n.includes(k))?.[1]||null;}
-  function collect(){
-    const rows=[...document.querySelectorAll('#auditoria tr')];
-    return rows.map(tr=>{const cells=[...tr.children].map(x=>x.innerText.trim());return {test:cells[0]||'',detail:cells[2]||'',result:(cells[3]||'').toUpperCase()};}).filter(x=>x.result);
+  const rules=[
+    {keys:['clientes','ventas'],title:'Clientes frente a ventas',why:'Compara cuánto representan los créditos a clientes respecto de las ventas y ayuda a detectar cambios importantes en el plazo implícito de cobranza.',accounts:'Balance: Créditos por ventas / Clientes. Estado de Resultados: Ventas netas.',evidence:'Antigüedad de saldos, principales clientes, condiciones de crédito y cobranzas posteriores al cierre.',threshold:'Una variación importante frente al período anterior merece explicación; un plazo alto no significa por sí solo incobrabilidad.'},
+    {keys:['inventario','costo de ventas'],title:'Inventario frente al costo de ventas',why:'Permite evaluar si el inventario actual es razonable en relación con el costo de ventas y si su rotación cambió significativamente.',accounts:'Balance: Inventarios. Estado de Resultados: Costo de ventas.',evidence:'Inventario físico, antigüedad, obsolescencia, compras, bajas, ajustes y criterio de valuación.',threshold:'Un aumento importante del inventario relativo al costo puede requerir revisar acumulación, obsolescencia o valuación.'},
+    {keys:['proveedores','compras'],title:'Proveedores frente a compras',why:'Reconstruye aproximadamente las compras a partir del costo de ventas y la variación del inventario y las contrasta con el movimiento de proveedores.',accounts:'Balance: Proveedores, anticipos y acreedores. Estado de Resultados: Costo de ventas. También Inventarios.',evidence:'Mayor de proveedores, facturas, pagos, compras al contado, anticipos y acreedores relacionados.',threshold:'La diferencia entre compras reconstruidas y proveedores no es automáticamente un error: debe explicarse mediante pagos, compras al contado y cambios de plazo.'},
+    {keys:['deuda','intereses'],title:'Deuda frente a intereses',why:'Relaciona los intereses registrados con la deuda financiera para detectar una relación atípica. La tasa implícita es solo una señal y no reemplaza el contrato.',accounts:'Balance: Deudas financieras CP y LP. Estado de Resultados: Intereses financieros.',evidence:'Contratos, cronogramas, extractos, desembolsos, cancelaciones, tasas e intereses devengados.',threshold:'Intereses con deuda final muy baja o cero requieren comprobar deuda cancelada durante el año, devengamientos u otras fuentes de financiamiento.'},
+    {keys:['caja','flujo'],title:'Caja frente al Flujo de Fondos',why:'Comprueba que la diferencia entre la caja inicial y final coincida con la variación neta de efectivo informada por el flujo.',accounts:'Balance: Caja y Bancos de ambos cierres. Flujo: Variación neta de caja.',evidence:'Extractos bancarios, conciliaciones, saldos iniciales/finales y composición de ingresos y egresos de efectivo.',threshold:'Si no coincide, hay que localizar la diferencia en saldos bancarios, movimientos omitidos o clasificación dentro del flujo.'},
+    {keys:['ppe','capex'],title:'Activo fijo frente a inversiones',why:'Compara el movimiento del activo fijo con las inversiones/compras informadas en el flujo. No tienen que ser idénticos porque existen depreciaciones, bajas, ventas y reclasificaciones.',accounts:'Balance: Activo fijo y depreciación. Flujo: Inversiones/compras y ventas de activo fijo.',evidence:'Registro de activo fijo, facturas, altas, bajas, ventas, depreciaciones y financiación de activos.',threshold:'Una diferencia requiere identificar qué parte corresponde a depreciación, baja, venta, reclasificación o adquisición financiada.'},
+    {keys:['inversión','financiamiento'],title:'Inversión frente a fuentes de financiamiento',why:'Busca determinar si los movimientos de deuda pueden explicar fuentes de fondos y si existe una relación razonable con las inversiones del período.',accounts:'Balance: Deuda financiera CP/LP. Flujo: Nuevas deudas y aplicaciones. Cruzar con Activo fijo, inversiones y caja.',evidence:'Contratos, desembolsos, extractos, facturas de inversión y documentación del destino de los fondos.',threshold:'Una nueva deuda identifica una fuente posible, pero no demuestra por sí sola el destino del dinero.'},
+    {keys:['ecuación patrimonial'],title:'Ecuación patrimonial',why:'Verifica que el Total Activo sea exactamente igual al Total Pasivo más Patrimonio Neto.',accounts:'Balance: Total Activo, Total Pasivo y Patrimonio Neto y las cuentas que forman cada total.',evidence:'Balance original, sumatorias, subtotales y partida que explique la diferencia.',threshold:'Cualquier diferencia distinta de cero requiere localizar la cuenta, signo o total que la origina.'},
+    {keys:['composición del patrimonio'],title:'Composición del patrimonio',why:'Comprueba que Capital, Reservas y Resultados expliquen el Patrimonio Neto informado.',accounts:'Balance: Capital, reservas, resultados acumulados, resultado del ejercicio y Patrimonio Neto.',evidence:'Estado de evolución del patrimonio, actas de capitalización, distribución de resultados y movimientos de reservas.',threshold:'Una diferencia requiere revisar capitalizaciones, distribuciones, reservas y resultados acumulados.'},
+    {keys:['resultado del ejercicio'],title:'Resultado neto',why:'Verifica que Resultado antes de impuesto menos Impuesto llegue al Resultado Neto informado.',accounts:'Estado de Resultados: Resultado antes de impuesto, Impuesto y Resultado Neto.',evidence:'Liquidación del impuesto, conciliación fiscal y Estado de Resultados.',threshold:'Una diferencia apunta a impuesto, resultado neto o clasificación de alguna partida.'},
+    {keys:['resultado bruto'],title:'Resultado bruto',why:'Comprueba que Ventas netas menos Costo de ventas explique el Resultado Bruto.',accounts:'Estado de Resultados: Ventas netas, Costo de ventas y Resultado Bruto.',evidence:'Libro de ventas, compras/costo, inventarios y conciliación del costo.',threshold:'Una diferencia requiere revisar importes, signos y clasificación del costo de ventas.'},
+    {keys:['ebitda'],title:'EBITDA',why:'Comprueba si el EBITDA puede explicarse desde el Resultado Bruto y los gastos operativos.',accounts:'Estado de Resultados: Resultado Bruto, gastos operativos y EBITDA.',evidence:'Detalle de gastos y criterios de clasificación.',threshold:'Una diferencia puede deberse a clasificación u omisión de gastos operativos.'},
+    {keys:['ebit'],title:'EBIT',why:'Comprueba que EBITDA menos depreciaciones/amortizaciones llegue al EBIT informado.',accounts:'Estado de Resultados: EBITDA, depreciaciones/amortizaciones y EBIT.',evidence:'Registro de activo fijo, vidas útiles, depreciaciones y movimientos de activos.',threshold:'Una diferencia requiere revisar depreciaciones y clasificación de gastos.'},
+    {keys:['resultado antes de impuesto'],title:'Resultado antes de impuesto',why:'Comprueba que el EBIT llegue al Resultado antes de impuesto considerando intereses, diferencia de cambio y otros resultados.',accounts:'Estado de Resultados: EBIT, intereses, diferencia de cambio, otros resultados y Resultado antes de impuesto.',evidence:'Detalle de resultados financieros/no operativos y comprobantes.',threshold:'Una diferencia puede estar en cuentas financieras, diferencia de cambio, otros resultados o clasificación.'}
+  ];
+  function ruleFor(test){
+    const n=norm(test);
+    return rules.find(r=>r.keys.every(k=>n.includes(k)))||rules.find(r=>r.keys.some(k=>n.includes(k)))||null;
   }
-  function grade(items){
+  function collectLatest(){
+    const rows=[...document.querySelectorAll('#auditoria tr')].map(tr=>{const c=[...tr.children].map(x=>x.innerText.trim());return {test:c[0]||'',relation:c[1]||'',detail:c[2]||'',result:(c[3]||'').toUpperCase()};}).filter(x=>x.result);
+    /* Cada prueba se repite por período. Conservar la última aparición evita que 2023/2024 generen alertas actuales. */
+    const latest=new Map();
+    rows.forEach(x=>latest.set(norm(x.test),x));
+    return [...latest.values()];
+  }
+  function currentYear(){
+    const explicit=$('ejercicio')?.value?.trim();
+    if(explicit)return explicit;
+    const text=$('auditoria')?.innerText||'';
+    const years=[...text.matchAll(/(20\d{2})\s*[—-]\s*(?:PRUEBAS|VALIDACIÓN)/gi)].map(m=>m[1]);
+    return years.length?years[years.length-1]:'período actual';
+  }
+  function overall(items){
     const bad=items.filter(x=>x.result==='INCONSISTENCIA').length;
-    const investigate=items.filter(x=>x.result==='PARA INDAGAR').length;
+    const ind=items.filter(x=>x.result==='PARA INDAGAR').length;
     const obs=items.filter(x=>x.result==='OBSERVACIÓN').length;
-    const corr=items.filter(x=>x.result==='CORRELACIÓN').length;
-    if(bad)return {name:'MALO',text:'Hay inconsistencias matemáticas o contables que deben resolverse antes de considerar la información plenamente coherente.',cls:'g-bad'};
-    if(investigate)return {name:'REGULAR',text:'No se detecta necesariamente un error, pero existen señales concretas que requieren verificación documental o explicación gerencial.',cls:'g-warn'};
-    if(obs)return {name:'BIEN',text:'Las relaciones principales cuadran, aunque existen aspectos de presentación o evolución que requieren interpretación.',cls:'g-good'};
-    if(corr)return {name:'BIEN',text:'Las pruebas matemáticas no muestran inconsistencias relevantes; varias relaciones son correlativas y deben interpretarse con la información del negocio.',cls:'g-good'};
-    return {name:'EXCELENTE',text:'Las pruebas disponibles cuadran y no quedaron señales relevantes pendientes de explicación.',cls:'g-excellent'};
+    const noData=items.filter(x=>x.result==='SIN DATOS').length;
+    if(bad)return {name:'MALO',cls:'g-bad',text:`Se detectaron ${bad} inconsistencia(s) en el período actual. Deben localizarse y explicarse antes de considerar plenamente coherente la información.`};
+    if(ind)return {name:'REGULAR',cls:'g-warn',text:`Se detectaron ${ind} señal(es) que requieren indagación en el período actual. Una alerta de este tipo no significa automáticamente que exista un error.`};
+    if(obs)return {name:'BIEN',cls:'g-good',text:`Las relaciones principales del período actual cuadran, pero quedaron ${obs} observación(es) que requieren interpretación.`};
+    if(noData===items.length)return {name:'SIN DATOS',cls:'g-warn',text:'No existen datos suficientes en el período actual para emitir una conclusión confiable.'};
+    return {name:'EXCELENTE',cls:'g-excellent',text:'Las pruebas disponibles del período actual cuadran y no quedaron alertas relevantes.'};
   }
+  function readableResult(result){return human[result]||{name:result,cls:'g-warn',text:'La prueba requiere interpretación.'};}
   function render(){
     const audit=$('auditoria');if(!audit)return;
-    const items=collect();if(!items.length)return;
+    const items=collectLatest();if(!items.length)return;
     const old=$('diagnosticoAuditoria');if(old)old.remove();
-    const g=grade(items);
-    const alerts=items.filter(x=>['PARA INDAGAR','INCONSISTENCIA','OBSERVACIÓN'].includes(x.result));
-    let html=`<section class="card" id="diagnosticoAuditoria"><h2>DIAGNÓSTICO E INTERPRETACIÓN</h2><div class="body"><div class="diag-grade ${g.cls}"><div class="diag-label">LECTURA GENERAL</div><div class="diag-value">${g.name}</div><div>${esc(g.text)}</div></div>`;
-    if(!alerts.length){html+='<div class="diag-ok"><b>No quedaron alertas específicas.</b><br>Las pruebas disponibles no muestran diferencias que requieran una revisión adicional.</div>'}
-    else{
-      html+='<h3>QUÉ DEBE INDAGARSE</h3><div class="diag-list">';
-      alerts.forEach((x,i)=>{const r=getRule(x.test);const priority=x.result==='INCONSISTENCIA'?'ALTA':x.result==='PARA INDAGAR'?'MEDIA':'BAJA';html+=`<div class="diag-item"><div class="diag-head"><b>${i+1}. ${esc(r?.title||x.test)}</b><span class="priority">${priority}</span></div><div class="diag-result">Resultado detectado: <b>${esc(x.result)}</b></div><div><b>Qué significa:</b> ${esc(r?.why||'La relación requiere una explicación adicional con los saldos y movimientos que la originan.')}</div><div><b>Qué cuentas revisar:</b> ${esc(r?.check||'Revisar las cuentas que intervienen directamente en la prueba y sus movimientos del período.')}</div><div><b>Qué pedir o comprobar:</b> ${esc(r?.evidence||'Solicitar el detalle auxiliar que permita explicar el movimiento.')}</div><div class="diag-detail"><b>Dato que disparó la alerta:</b> ${esc(x.detail.replace(/Base:.*?Verificar:/s,''))}</div></div>`});
+    const year=currentYear();
+    const g=overall(items);
+    const alerts=items.filter(x=>['PARA INDAGAR','INCONSISTENCIA','OBSERVACIÓN','SIN DATOS'].includes(x.result));
+    const normal=items.filter(x=>['CONCILIADO','CORRELACIÓN'].includes(x.result)).length;
+    let html=`<section class="card" id="diagnosticoAuditoria"><h2>DIAGNÓSTICO E INTERPRETACIÓN — PERÍODO ACTUAL ${esc(year)}</h2><div class="body"><div class="diag-grade ${g.cls}"><div class="diag-label">CONCLUSIÓN GENERAL</div><div class="diag-value">${esc(g.name)}</div><div>${esc(g.text)}</div><div class="note"><b>Importante:</b> ${esc(year==='período actual'?'Los períodos anteriores se utilizan como referencia, cuando existen.':'Los períodos anteriores se utilizan únicamente para comparar evolución y explicar cambios; no generan alertas independientes.')}</div></div>`;
+    html+=`<div class="diag-summary"><b>Lectura del período:</b> ${normal} prueba(s) sin alerta principal · ${alerts.filter(x=>x.result!=='SIN DATOS').length} alerta(s)/observación(es) actuales${alerts.some(x=>x.result==='SIN DATOS')?' · '+alerts.filter(x=>x.result==='SIN DATOS').length+' sin datos':''}.</div>`;
+    if(!alerts.length){
+      html+='<div class="diag-ok"><b>No quedaron puntos que requieran indagación en el período actual.</b><br>Las pruebas disponibles muestran relaciones coherentes. Los períodos anteriores quedan como referencia de tendencia.</div>';
+    }else{
+      html+='<h3>QUÉ SIGNIFICA CADA ALERTA DEL PERÍODO ACTUAL</h3><div class="diag-list">';
+      alerts.forEach((x,i)=>{
+        const r=ruleFor(x.test);const h=readableResult(x.result);const priority=x.result==='INCONSISTENCIA'?'ALTA':x.result==='PARA INDAGAR'?'MEDIA':x.result==='OBSERVACIÓN'?'BAJA':'INFORMATIVA';
+        const detail=x.detail.replace(/Base:.*?Verificar:/s,'').replace(/\s+/g,' ').trim();
+        html+=`<div class="diag-item ${h.cls}"><div class="diag-head"><b>${i+1}. ${esc(r?.title||x.test)}</b><span class="priority">${priority}</span></div><div class="diag-result"><b>${esc(h.name)}</b> — ${esc(h.text)}</div><div><b>¿Qué está evaluando?</b> ${esc(r?.why||'La relación entre las cuentas que intervienen en esta prueba.')}</div><div><b>¿Qué cuentas intervienen?</b> ${esc(r?.accounts||'Revisar las cuentas que forman el cálculo de la prueba.')}</div><div><b>¿Por qué aparece la alerta?</b> ${esc(r?.threshold||'El resultado actual requiere explicación con la información contable y documental del período.')}</div><div><b>¿Qué debería comprobar?</b> ${esc(r?.evidence||'Solicitar el detalle auxiliar y la documentación que explique el movimiento.')}</div><div class="diag-detail"><b>Datos utilizados por el sistema:</b> ${esc(detail||'Consultar el detalle de la prueba.')}</div>`;
+        if(x.result==='SIN DATOS')html+='<div class="diag-caution"><b>No interpretar como error:</b> la ausencia de datos impide evaluar la relación. El sistema no debe convertir un período sin información en una inconsistencia.</div>';
+        html+='</div>';
+      });
       html+='</div>';
     }
-    html+='<div class="diag-legend"><b>MALO</b> = existe una inconsistencia que no se explica con la relación evaluada. <b>REGULAR</b> = hay señales que requieren indagación. <b>BIEN</b> = no hay inconsistencias principales, aunque puede haber observaciones/correlaciones. <b>EXCELENTE</b> = todas las pruebas disponibles cuadran sin alertas relevantes.</div></div></section>';
+    html+='<div class="diag-legend"><b>MALO</b> = la relación actual no cuadra y no queda explicada. <b>REGULAR</b> = existe una señal actual que requiere indagación. <b>BIEN</b> = no hay inconsistencias principales actuales, aunque puede haber observaciones. <b>EXCELENTE</b> = las pruebas disponibles cuadran sin alertas relevantes.</div></div></section>';
     audit.insertAdjacentHTML('beforeend',html);
   }
-  function init(){const b=$('leer');if(!b)return;b.addEventListener('click',()=>setTimeout(render,900));}
+  function init(){const b=$('leer');if(!b)return;b.addEventListener('click',()=>setTimeout(render,1200));}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
