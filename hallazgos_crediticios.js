@@ -1,0 +1,58 @@
+/* HALLAZGOS CREDITICIOS ADICIONALES
+   No acusa errores: identifica señales que pueden afectar el análisis de crédito.
+   Usa únicamente los datos disponibles en Balance/ER/Flujo. La documentación adicional se propone solo si la señal es material.
+*/
+(function(){
+  const $=id=>document.getElementById(id);
+  const norm=s=>String(s??'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim();
+  const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  const n=v=>{if(v==null||v==='')return null;if(typeof v==='number')return Number.isFinite(v)?v:null;let s=String(v).trim().replace(/\s/g,'').replace(/[()]/g,'-');if(/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s))s=s.replace(/\./g,'').replace(',','.');else s=s.replace(/,/g,'.');const x=Number(s.replace(/[^0-9eE+\-.]/g,''));return Number.isFinite(x)?x:null;};
+  const fmt=x=>x==null?'—':new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(x);
+  const pct=x=>x==null?'—':(x*100).toFixed(1)+'%';
+  const aliases={
+    activo:['total activo','activo total'], pasivo:['total pasivo','pasivo total'], patrimonio:['patrimonio neto','total patrimonio neto','patrimonio'],
+    proveedores:['deudas comerciales - cp (proveedores)','deudas comerciales cp (proveedores)','deudas comerciales - cp','deudas comerciales cp','proveedores'],
+    acreedores:['acreedores varios','otras cuentas por pagar','otros acreedores','cuentas por pagar'], impuestos:['impuestos por pagar','tributos por pagar','impuestos y tasas por pagar','obligaciones fiscales'],
+    salarios:['sueldos y salarios por pagar','remuneraciones por pagar','salarios por pagar'], deudaCp:['deudas financieras - cp','deudas financieras cp','deuda financiera - cp','deuda financiera cp'], deudaLp:['deudas financieras - lp','deudas financieras lp','deuda financiera - lp','deuda financiera lp'],
+    clientes:['creditos comerciales - cp (clientes)','creditos comerciales cp (clientes)','creditos comerciales - cp','creditos comerciales cp','clientes'], inventario:['inventario','inventarios'], ventas:['ventas netas','ventas'], costo:['costo de ventas','costos de ventas'], intereses:['intereses financieros pagados','intereses financieros','intereses pagados'],
+    resultado:['resultado neto','resultado del ejercicio','ganancia del ejercicio','perdida del ejercicio'], depreciacion:['depreciaciones','depreciacion y amortizacion','depreciacion'], activoFijo:['activo fijo (bruto)','activo fijo bruto','activo fijo'], caja:['disponible (caja y bancos)','disponible caja y bancos','caja y bancos','disponible','caja']
+  };
+  const cols=[2,5,8];
+  function findRow(rows,labels,start=0,end=rows.length){const wanted=labels.map(norm);for(let r=start;r<Math.min(end,rows.length);r++){const cells=[0,1,2,3].map(c=>norm(rows[r]?.[c])).filter(Boolean);if(wanted.some(w=>cells.includes(w)))return r;}for(let r=start;r<Math.min(end,rows.length);r++){const cells=[0,1,2,3].map(c=>norm(rows[r]?.[c])).filter(Boolean);if(wanted.some(w=>cells.some(c=>c===w||c.startsWith(w+' ')||c.endsWith(' '+w))))return r;}return -1;}
+  function load(){const file=$('archivoUnico')?.files?.[0];if(!file||!window.XLSX)return Promise.resolve(null);return file.arrayBuffer().then(buf=>{const wb=XLSX.read(buf,{type:'array',raw:true,blankrows:true});const sh=wb.Sheets[wb.SheetNames.find(x=>norm(x)==='ee ff y eerr')||wb.SheetNames[0]];const rows=XLSX.utils.sheet_to_json(sh,{header:1,defval:null,raw:true,blankrows:true});const d={};for(const [k,a] of Object.entries(aliases)){const r=findRow(rows,a);d[k]=r<0?null:cols.map(c=>n(rows[r]?.[c]));}return d;});}
+  const v=(d,k,i)=>d[k]?.[i]??null, has=x=>x!=null&&Number.isFinite(x);
+  function add(list,level,title,what,why,check,request){list.push({level,title,what,why,check,request});}
+  function analyze(d){
+    const current=Number($('ejercicio')?.value)||2025, i=2, p=1, out=[];
+    const passivo=v(d,'pasivo',i),activo=v(d,'activo',i),pat=v(d,'patrimonio',i),prov=v(d,'proveedores',i),acre=v(d,'acreedores',i),imp=v(d,'impuestos',i),sal=v(d,'salarios',i),debt=(v(d,'deudaCp',i)||0)+(v(d,'deudaLp',i)||0),clients=v(d,'clientes',i),inv=v(d,'inventario',i),sales=v(d,'ventas',i),cost=v(d,'costo',i),interest=v(d,'intereses',i),res=v(d,'resultado',i),cash=v(d,'caja',i),cash0=v(d,'caja',p);
+    // 1. Ecuación patrimonial y posible pasivo no explicado
+    if(has(activo)&&has(passivo)&&has(pat)){
+      const diff=activo-(passivo+pat),material=Math.max(Math.abs(activo),1)*0.005;
+      if(Math.abs(diff)>material)add(out,'ALTA','Balance: diferencia que puede ocultar una cuenta o clasificación','Activo no coincide con Pasivo + Patrimonio Neto. Diferencia: G. '+fmt(diff)+'.','Antes de interpretar la solvencia, hay que resolver esta diferencia. Puede ser un error de transcripción, signo, cuenta omitida o clasificación incorrecta.','Total Activo, Total Pasivo y Patrimonio Neto del período actual.','Primero corregir/confirmar el Balance. No solicitar documentos al cliente hasta localizar la diferencia.');
+    }
+    // 2. Pasivos visibles muy bajos frente a actividad: señal, no acusación
+    if(has(passivo)&&has(sales)&&sales>0){const ratio=passivo/sales;const prevP= v(d,'pasivo',p), prevS=v(d,'ventas',p);const prevRatio=has(prevP)&&has(prevS)&&prevS>0?prevP/prevS:null;
+      if(ratio<0.05 && sales>0 && (prevRatio==null||prevRatio>ratio*1.8))add(out,'MEDIA','Posible subregistro de pasivos: obligaciones muy bajas frente a la actividad',`El Pasivo total representa ${pct(ratio)} de las ventas de ${current}${prevRatio!=null?` y la relación del período anterior era ${pct(prevRatio)}`:''}.`,'Un pasivo bajo no es malo por sí mismo. Se vuelve una señal cuando la empresa tiene una actividad importante y, al mismo tiempo, proveedores, deudas financieras, impuestos u otras obligaciones visibles son muy reducidos. Esto puede indicar pagos al contado, baja financiación o una clasificación/omisión que debe analizarse.','Pasivo total, Proveedores, Acreedores, Impuestos por pagar, Deuda financiera y evolución 2023-2025.','Si la señal es material: pedir detalle de deuda con proveedores y, si corresponde, referencias bancarias. No afirmar pasivo omitido sin evidencia.');
+    }
+    // 3. Compras/actividad alta con proveedores muy bajos
+    if(has(cost)&&has(inv)&&has(prov)){const inv0=v(d,'inventario',p);if(has(inv0)){const purchases=cost+(inv-inv0), provRatio= purchases>0?prov/purchases:null;if(purchases>0&&provRatio<0.03)add(out,'MEDIA','Proveedores muy bajos frente al volumen de compras','El saldo de proveedores representa aproximadamente '+pct(provRatio)+' de las compras reconstruidas del período.','Si casi todo el volumen de compras queda sin saldo de proveedores, puede ser normal si se compra y paga al contado. Pero también puede requerir comprobar si existen obligaciones con proveedores o acreedores que no están dentro de esa cuenta.','Proveedores, Acreedores varios, pagos, anticipos y compras al contado.','Primera solicitud si la señal afecta el crédito: detalle de deuda con proveedores.');}}
+    // 4. Intereses con deuda final baja/cero
+    if(has(interest)&&interest!==0&&debt<=0)add(out,'MEDIA','Intereses sin deuda financiera al cierre','Se registran intereses por G. '+fmt(interest)+' mientras la deuda financiera CP/LP al cierre es cero o no significativa.','Esto puede explicarse por préstamos cancelados durante el año, intereses devengados de períodos anteriores u otras fuentes de financiamiento. También puede ser una señal de obligaciones que no quedan visibles al cierre.','Deuda financiera inicial/final, intereses y movimientos del ejercicio.','Si no se explica con los estados: referencia bancaria o detalle de deuda financiera.');
+    // 5. Resultado positivo pero caja cae fuertemente
+    if(has(res)&&has(cash)&&has(cash0)&&res>0&&cash<cash0){const drop=(cash0-cash)/Math.max(Math.abs(res),1);if(drop>0.5)add(out,'MEDIA','Resultado positivo con caída importante de Caja/Bancos','La empresa muestra resultado positivo, pero Caja/Bancos disminuye en G. '+fmt(cash0-cash)+' durante el período.','Resultado contable y efectivo no son lo mismo. La diferencia puede estar explicada por inversiones, pagos de deuda, aumento de clientes o inventarios. Si esos usos no aparecen claramente, puede existir presión de liquidez.','Flujo de fondos, Clientes, Inventario, deuda financiera y compras de activos.','No pedir documentos automáticamente: primero explicar la disminución con el Balance y Flujo.');}
+    // 6. Clientes crecen mucho más que ventas
+    const c0=v(d,'clientes',p),s0=v(d,'ventas',p);if(has(clients)&&has(c0)&&has(sales)&&has(s0)&&s0>0&&c0>=0){const cg=c0===0?null:(clients-c0)/Math.abs(c0),sg=(sales-s0)/Math.abs(s0);if(cg!=null&&cg>0.5&&sg<cg*0.5)add(out,'MEDIA','Clientes crecen mucho más que las ventas',`Clientes aumentan ${pct(cg)} mientras las ventas aumentan ${pct(sg)}.`,'El crédito a clientes está creciendo a un ritmo muy superior al negocio. Esto puede significar mayores plazos, acumulación de saldos o cambios comerciales que deben entenderse.','Clientes, ventas y evolución mensual de IVA de los últimos 12 meses.','Si la señal persiste: pedir detalle de deuda de clientes.');}
+    // 7. Pasivo cae mientras actividad aumenta
+    const pass0=v(d,'pasivo',p);if(has(passivo)&&has(pass0)&&has(sales)&&has(s0)&&s0>0&&pass0>0){const pg=(passivo-pass0)/pass0,sg=(sales-s0)/s0;if(pg<-0.4&&sg>0.15)add(out,'MEDIA','Pasivo disminuye fuertemente mientras la actividad aumenta',`El Pasivo disminuye ${pct(Math.abs(pg))} mientras las ventas aumentan ${pct(sg)}.`,'Puede indicar cancelación real de obligaciones y una mejora financiera, pero también requiere comprobar cómo se financiaron las operaciones del período si la empresa mantuvo o aumentó su actividad.','Pasivo por rubro, proveedores, deuda financiera, impuestos y flujo de fondos.','Si no se explica con el flujo y los balances: detalle de deuda con proveedores y/o referencias bancarias.');}
+    return {current,out};
+  }
+  function render(r){
+    if(!r||!r.out.length)return;
+    const audit=$('auditoria');if(!audit)return;const old=$('hallazgosCrediticios');if(old)old.remove();
+    const s=document.createElement('section');s.className='card';s.id='hallazgosCrediticios';
+    s.innerHTML=`<h2>HALLAZGOS CREDITICIOS ADICIONALES — ${esc(r.current)}</h2><div class="body"><div class="simple-intro"><b>Esta sección busca excepciones, no repite ratios.</b> Una señal no significa que exista un error: indica que el comportamiento no puede darse por normal sin una explicación suficiente.</div><div class="diag-list">${r.out.map((x,i)=>`<article class="diag-item actionable"><div class="diag-head"><div><span class="diag-num">${i+1}</span><b>${esc(x.title)}</b></div><span class="priority p-${x.level.toLowerCase()}">${esc(x.level)}</span></div><p><b>Qué detectó:</b> ${esc(x.what)}</p><p><b>Por qué importa para el crédito:</b> ${esc(x.why)}</p><p><b>Qué revisar primero:</b> ${esc(x.check)}</p><p><b>Qué pedir al cliente, solo si hace falta:</b> ${esc(x.request)}</p></article>`).join('')}</div><div class="diag-policy"><b>Regla:</b> el sistema no acusa “pasivo omitido” con una sola relación. Utiliza el término <b>posible omisión/subregistro</b> únicamente cuando existen señales que justifican profundizar, y primero agota la información ya disponible.</div></div></section>`;
+    audit.appendChild(s);
+  }
+  function init(){const b=$('leer');if(!b)return;b.addEventListener('click',()=>setTimeout(()=>load().then(d=>render(analyze(d))),2200));}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+})();
