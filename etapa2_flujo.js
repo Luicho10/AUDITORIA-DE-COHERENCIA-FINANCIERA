@@ -10,7 +10,7 @@
  const money=x=>new Intl.NumberFormat('es-PY',{maximumFractionDigits:0}).format(x||0);
  const label=r=>norm(r?.[1]??r?.[0]);
  function rows(){const f=$('archivoUnico')?.files?.[0];if(!f||!window.XLSX)return null;return f.arrayBuffer().then(b=>{const wb=XLSX.read(b,{type:'array',raw:true,blankrows:true});const name=wb.SheetNames.find(x=>norm(x)==='ee ff y eerr')||wb.SheetNames[0];return XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:0,raw:true,blankrows:true})})}
- function findRow(r, names, start=0, end=r.length){const wanted=names.map(norm);for(let i=start;i<end;i++){const l=label(r[i]);if(wanted.includes(l))return i}for(let i=start;i<end;i++){const l=label(r[i]);if(wanted.some(w=>l.includes(w)))return i}return -1}
+ function findRow(r,names,start=0,end=r.length){const wanted=names.map(norm);for(let i=start;i<end;i++){const l=label(r[i]);if(wanted.includes(l))return i}for(let i=start;i<end;i++){const l=label(r[i]);if(wanted.some(w=>l.includes(w)))return i}return -1}
  function val(r,idx,col){return idx<0?0:n(r[idx]?.[col])}
  function run(r){
    if(!r)return;
@@ -28,6 +28,16 @@
    const cashVariation=cashCur-cashPrev;
    const clientVariation=clientCur-clientPrev;
    const genOp=val(r,genOpRow,C[cur]),genNoOp=val(r,genNoOpRow,C[cur]);
+   const financingLabels={
+     newFinCP:['nuevas deudas financieras cp'],newFinLP:['nuevas deudas financieras lp'],
+     newComLP:['nuevas deudas comerciales lp'],newSocCP:['nuevas deudas con socios y cooperativas cp'],newSocLP:['nuevas deudas con socios y cooperativas lp'],
+     payFinCP:['pago deudas financieras cp'],payFinLP:['pago deudas financieras lp'],payComLP:['pago deudas comerciales lp'],
+     paySocCP:['pago deudas con socios y cooperativas cp'],paySocLP:['pago deudas con socios y cooperativas lp']
+   };
+   const financing=[];
+   for(const [key,names] of Object.entries(financingLabels)){const row=findRow(r,names);const amount=val(r,row,C[cur]);if(row>=0&&Math.abs(amount)>0)financing.push({key,amount,label:label(r[row])})}
+   const newDebt=financing.filter(x=>x.key.startsWith('new')).reduce((s,x)=>s+x.amount,0);
+   const payDebt=financing.filter(x=>x.key.startsWith('pay')).reduce((s,x)=>s+x.amount,0);
    const checks=[
      {name:'Caja ↔ Flujo',diff:cashVariation-flowNet,detail:`Caja 2024 G. ${money(cashPrev)} → Caja 2025 G. ${money(cashCur)} · Variación según Balance G. ${money(cashVariation)} · Variación neta según Flujo G. ${money(flowNet)}`,formula:`G. ${money(cashCur)} − G. ${money(cashPrev)} = G. ${money(cashVariation)}; luego G. ${money(cashVariation)} − G. ${money(flowNet)} = G. ${money(cashVariation-flowNet)}.`},
      {name:'Clientes ↔ Flujo',diff:flowClients-clientVariation,detail:`Clientes 2024 G. ${money(clientPrev)} → Clientes 2025 G. ${money(clientCur)} · Variación según Balance G. ${money(clientVariation)} · Variación de Clientes según Flujo G. ${money(flowClients)}`,formula:`G. ${money(flowClients)} − G. ${money(clientVariation)} = G. ${money(flowClients-clientVariation)}.`},
@@ -35,10 +45,16 @@
    ];
    const bad=checks.filter(x=>Math.abs(x.diff)>1);
    const sec=document.createElement('section');sec.className='card';sec.id='flujoCompacto';
+   let financingHtml='';
+   if(financing.length){
+     const rowsNew=financing.filter(x=>x.key.startsWith('new')),rowsPay=financing.filter(x=>x.key.startsWith('pay'));
+     financingHtml=`<div class="flow-financing"><b>FINANCIAMIENTO DETECTADO EN 2025</b><div class="flow-financing-grid">${rowsNew.length?`<div><b>Nuevas obligaciones</b>${rowsNew.map(x=>`<div>${esc(x.label)}: <strong>G. ${money(x.amount)}</strong></div>`).join('')}</div>`:''}${rowsPay.length?`<div><b>Pagos de obligaciones</b>${rowsPay.map(x=>`<div>${esc(x.label)}: <strong>G. ${money(x.amount)}</strong></div>`).join('')}</div>`:''}</div><div class="flow-financing-note">El sistema distingue <b>deuda financiera</b>, <b>deuda comercial</b> y <b>deuda con socios/cooperativas</b>. Una nueva deuda no se considera automáticamente una anomalía: debe relacionarse con el aumento/disminución del pasivo y con el destino de los fondos.</div></div>`;
+   }
    sec.innerHTML=`<h2>3. FLUJO DE FONDOS — CONTROL DEL PERÍODO ACTUAL</h2><div class="body">
    <div class="compact-note"><b>2025 es el período evaluado.</b> 2023 y 2024 se usan solamente para comparar evolución. No generan alertas independientes.</div>
    <div class="flow-summary"><div><b>Caja inicial 2025</b><strong>G. ${money(cashPrev)}</strong></div><div><b>Caja final 2025</b><strong>G. ${money(cashCur)}</strong></div><div><b>Variación según Balance</b><strong>G. ${money(cashVariation)}</strong></div><div><b>Variación según Flujo</b><strong>G. ${money(flowNet)}</strong></div></div>
    <div class="flow-status ${bad.length?'warn':'ok'}"><b>${bad.length?'REVISAR FLUJO':'FLUJO CONCILIADO'}</b><br>${bad.length?'Existe al menos una diferencia entre el Flujo y los estados que debe explicarse.':'Las relaciones principales del Flujo del período actual coinciden con los saldos utilizados.'}</div>
+   ${financingHtml}
    <details open><summary>Ver origen de las diferencias</summary><div class="flow-origin">${checks.map(x=>`<div class="flow-check"><div><b>${esc(x.name)}</b><span class="${Math.abs(x.diff)>1?'badcell':'okcell'}">${Math.abs(x.diff)>1?'Diferencia G. '+money(x.diff):'CONCILIADO'}</span></div><div class="flow-detail">${esc(x.detail)}${Math.abs(x.diff)>1?`<br><b>Cómo se obtuvo:</b> ${esc(x.formula)}<br><b>Importante:</b> esta diferencia es una señal de conciliación; no significa por sí sola que exista un error contable.`:''}</div></div>`).join('')}</div></details>
    </div>`;
    const a=$('auditoria');if(a){const old=$('flujoCompacto');if(old)old.remove();a.classList.remove('hidden');a.insertBefore(sec,a.firstChild)}else document.body.appendChild(sec)
