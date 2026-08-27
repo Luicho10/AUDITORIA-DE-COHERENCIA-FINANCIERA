@@ -8,16 +8,19 @@
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
-<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Controles financieros para análisis crediticio</small></div><b>V4 · MOTOR FINANCIERO</b></header>
+<header class="header"><div><h1>AUDITORÍA DE COHERENCIA FINANCIERA</h1><small>Controles financieros para análisis crediticio</small></div><b>V3 · MOTOR FINANCIERO</b></header>
 <main class="wrap">
 <section id="login" class="card login-card"><h2>ACCESO AL SISTEMA</h2><div class="body login-body"><label>Usuario</label><input id="usuario" autocomplete="username" placeholder="Usuario"><label>Contraseña</label><input id="clave" type="password" autocomplete="current-password" placeholder="Contraseña"><button class="btn primary" id="ingresar">INGRESAR</button><div id="loginMsg" class="login-msg"></div></div></section>
 <div id="app" class="hidden">
 <section class="card"><h2>1. IDENTIFICACIÓN DEL CLIENTE</h2><div class="body grid"><div><label>Cliente / Razón Social</label><input id="cliente"></div><div><label>RUC / CI</label><input id="ruc"></div><div><label>Ejercicio final</label><input id="ejercicio" readonly></div><div><label>Períodos disponibles</label><input id="periodos" readonly placeholder="Se detectan automáticamente"></div></div></section>
-<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>ARCHIVO ÚNICO</b><input id="archivoUnico" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="archivoNombre">Sin archivo</span></div></div><p class="muted"><b>Una sola carga.</b> El último período disponible es el período actual; los anteriores se utilizan solamente para tendencia y deterioro.</p><div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR</button><button class="btn secondary" id="limpiar">LIMPIAR</button></div></div></section>
-<section id="control" class="card hidden"><h2>3. DIAGNÓSTICO FINANCIERO</h2><div class="body" id="controlBody"></div></section>
+<section class="card"><h2>2. CARGA DE ESTADOS FINANCIEROS</h2><div class="body"><div class="filebox"><div><b>ARCHIVO ÚNICO</b><input id="archivoUnico" type="file" accept=".xlsx,.xls,.xlsm,.csv"><span id="archivoNombre">Sin archivo</span></div></div><p class="muted"><b>Una sola carga.</b> El sistema utiliza los estados comparativos y el flujo de fondos. Los períodos anteriores sirven como referencia de tendencia; las alertas se concentran en el período actual.</p><div class="actions"><button class="btn primary" id="leer">LEER Y ANALIZAR</button><button class="btn secondary" id="limpiar">LIMPIAR</button></div></div></section>
+<section id="control" class="card hidden"><h2>3. ESTADOS FINANCIEROS Y FLUJO COMPARATIVO</h2><div class="body" id="controlBody"></div></section>
 <section id="auditoria" class="hidden"></section>
 </div></main>
 <script>document.getElementById('ingresar').addEventListener('click',function(){const u=document.getElementById('usuario').value.trim(),p=document.getElementById('clave').value,msg=document.getElementById('loginMsg');if(!u||!p){msg.textContent='Ingrese usuario y contraseña.';return}document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden')});</script>
 <script src="etapa1.js?v=20260827-3"></script>
-<script src="motor_diagnostico_final.js?v=20260827-2"></script>
+<script src="etapa2_flujo.js?v=20260827-2"></script>
+<script src="motor_controles_financieros.js?v=20260826-3"></script>
+<script src="motor_crediticio_v2.js?v=20260827-4"></script>
+<script src="control_financiamiento_actual.js?v=20260827-1"></script>
 </body></html>
